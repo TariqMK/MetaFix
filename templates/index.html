@@ -1,0 +1,1211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MetaFix</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg:        #0d0d0d;
+    --surface:   #141414;
+    --surface2:  #1c1c1e;
+    --surface3:  #242426;
+    --surface4:  #2c2c2e;
+    --border:    #2c2c2e;
+    --border2:   #3a3a3c;
+    --text:      #f0f0f0;
+    --text2:     #98989e;
+    --text3:     #48484a;
+    --gold:      #c9a96e;
+    --gold-glow: rgba(201,169,110,0.12);
+    --gold2:     #a8823e;
+    --red:       #ff453a;
+    --red-bg:    rgba(255,69,58,0.1);
+    --green:     #30d158;
+    --green-bg:  rgba(48,209,88,0.1);
+    --mono:      'IBM Plex Mono', monospace;
+    --sans:      'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    --radius-sm: 6px;
+    --radius:    8px;
+    --radius-lg: 12px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 13px;
+    font-weight: 400;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ── TITLEBAR ── */
+  .titlebar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    height: 52px;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    -webkit-app-region: drag;
+  }
+  .titlebar-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .logo {
+    font-family: var(--mono);
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--gold);
+    letter-spacing: 0.06em;
+  }
+  .logo span { color: var(--text3); font-weight: 400; }
+  .exif-status {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    padding: 4px 10px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+    transition: border-color 0.2s, color 0.2s;
+    max-width: 340px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .exif-status:hover { border-color: var(--gold); color: var(--gold); }
+  .exif-status.ok { color: var(--green); border-color: rgba(48,209,88,0.25); }
+  .titlebar-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    -webkit-app-region: no-drag;
+  }
+
+  /* ── LAYOUT ── */
+  .main {
+    display: flex;
+    flex: 1;
+    overflow: hidden;
+  }
+
+  /* ── SIDEBAR ── */
+  .sidebar {
+    width: 288px;
+    flex-shrink: 0;
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow-y: auto;
+    overflow-x: hidden;
+  }
+
+  .sidebar-section {
+    padding: 16px 18px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-label {
+    font-family: var(--sans);
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--text3);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  /* mode tabs */
+  .mode-tabs {
+    display: flex;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 3px;
+    gap: 2px;
+  }
+  .mode-tab {
+    flex: 1;
+    padding: 6px 4px;
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text2);
+    background: none;
+    border: none;
+    border-radius: calc(var(--radius) - 2px);
+    cursor: pointer;
+    transition: all 0.18s ease;
+    text-align: center;
+    letter-spacing: 0.01em;
+  }
+  .mode-tab.active {
+    background: var(--gold);
+    color: #0d0d0d;
+    font-weight: 600;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.4);
+  }
+  .mode-tab:hover:not(.active) { color: var(--text); background: var(--surface3); }
+
+  /* mode panels */
+  .mode-panel { display: none; margin-top: 14px; }
+  .mode-panel.visible { display: block; }
+
+  /* inputs */
+  label.field-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text2);
+    margin-bottom: 6px;
+  }
+  input[type="datetime-local"], input[type="number"], select {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 8px 10px;
+    font-family: var(--mono);
+    font-size: 12px;
+    border-radius: var(--radius-sm);
+    outline: none;
+    transition: border-color 0.18s, box-shadow 0.18s;
+    margin-bottom: 8px;
+  }
+  input:focus, select:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px var(--gold-glow);
+  }
+  select option { background: var(--surface2); }
+
+  .shift-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    margin-top: 2px;
+  }
+  .shift-field label {
+    display: block;
+    font-size: 10px;
+    font-weight: 500;
+    color: var(--text3);
+    margin-bottom: 4px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  .shift-field input { margin-bottom: 0; }
+
+  /* checkboxes */
+  .checkbox-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    padding: 5px 0;
+    cursor: pointer;
+  }
+  .checkbox-row input[type="checkbox"] {
+    width: 14px; height: 14px;
+    accent-color: var(--gold);
+    cursor: pointer;
+    margin: 0; padding: 0;
+    flex-shrink: 0;
+  }
+  .checkbox-row span {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--text2);
+  }
+  .checkbox-row:hover span { color: var(--text); }
+
+  .dest-fields-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2px;
+  }
+
+  /* buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 7px 13px;
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 500;
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    background: var(--surface2);
+    color: var(--text2);
+    cursor: pointer;
+    transition: all 0.18s ease;
+    white-space: nowrap;
+    letter-spacing: 0.01em;
+  }
+  .btn:hover {
+    border-color: var(--border2);
+    color: var(--text);
+    background: var(--surface3);
+  }
+  .btn.primary {
+    background: var(--gold);
+    border-color: var(--gold);
+    color: #0d0d0d;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    box-shadow: 0 1px 6px rgba(201,169,110,0.25);
+  }
+  .btn.primary:hover {
+    background: var(--gold2);
+    border-color: var(--gold2);
+    box-shadow: 0 2px 10px rgba(201,169,110,0.3);
+  }
+  .btn.danger { border-color: rgba(255,69,58,0.2); color: var(--red); }
+  .btn.danger:hover { background: var(--red-bg); border-color: var(--red); }
+  .btn.success-btn { border-color: rgba(48,209,88,0.2); color: var(--green); }
+  .btn.success-btn:hover { background: var(--green-bg); border-color: var(--green); }
+  .btn:disabled { opacity: 0.3; cursor: not-allowed; }
+  .btn-row { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 8px; }
+
+  /* ── FILE AREA ── */
+  .file-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    background: var(--bg);
+  }
+
+  .file-toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+    flex-wrap: wrap;
+  }
+  .file-count {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text3);
+    margin-left: auto;
+  }
+  .sel-count {
+    font-family: var(--sans);
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--gold);
+    background: var(--gold-glow);
+    padding: 2px 8px;
+    border-radius: 20px;
+    display: none;
+  }
+  .sel-count.visible { display: inline; }
+  .toolbar-row2 {
+    display: none;
+    width: 100%;
+    align-items: center;
+    gap: 8px;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    margin-top: 2px;
+  }
+  .toolbar-row2.visible { display: flex; }
+  .filter-label {
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--text3);
+    white-space: nowrap;
+  }
+  .filter-select {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 9px;
+    font-family: var(--mono);
+    font-size: 11px;
+    border-radius: var(--radius-sm);
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.18s;
+  }
+  .filter-select:focus { border-color: var(--gold); }
+
+  .drop-zone {
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    position: relative;
+  }
+  .drop-overlay {
+    position: absolute;
+    inset: 8px;
+    background: var(--gold-glow);
+    border: 2px dashed var(--gold);
+    border-radius: var(--radius-lg);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+    font-family: var(--sans);
+    font-size: 15px;
+    font-weight: 500;
+    color: var(--gold);
+    letter-spacing: 0.01em;
+    pointer-events: none;
+  }
+  .drop-overlay.visible { display: flex; }
+
+  .empty-state {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    color: var(--text3);
+    gap: 14px;
+    font-size: 13px;
+    font-weight: 400;
+  }
+  .empty-state svg { opacity: 0.2; }
+  .empty-state.hidden { display: none; }
+
+  /* table */
+  .table-wrap {
+    flex: 1;
+    overflow: auto;
+    display: none;
+  }
+  .table-wrap.visible { display: block; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-family: var(--mono);
+    font-size: 11px;
+  }
+  thead {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+    background: var(--surface);
+  }
+  th {
+    padding: 9px 14px;
+    text-align: left;
+    color: var(--text3);
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 10px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+  }
+  tr.file-row {
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  tr.file-row:hover { background: var(--surface2); }
+  tr.file-row.selected { background: rgba(201,169,110,0.06); }
+  tr.file-row.selected:hover { background: rgba(201,169,110,0.1); }
+  td {
+    padding: 8px 14px;
+    vertical-align: middle;
+    max-width: 0;
+  }
+  td.name-col {
+    width: 35%;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text);
+    font-weight: 400;
+  }
+  td.date-col {
+    width: 28%;
+    color: var(--text2);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  td.date-col.after { color: var(--gold); }
+  td.date-col.no-change { color: var(--text3); }
+  td.status-col {
+    width: 9%;
+    text-align: center;
+  }
+  .status-badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 20px;
+    font-family: var(--sans);
+    font-size: 9px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+  .status-badge.ok      { background: var(--green-bg); color: var(--green); }
+  .status-badge.err     { background: var(--red-bg);   color: var(--red); }
+  .status-badge.ready   { background: var(--surface3); color: var(--text3); }
+  .status-badge.loading { background: var(--surface3); color: var(--gold); }
+
+  /* ── BOTTOM BAR ── */
+  .bottombar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 9px 18px;
+    border-top: 1px solid var(--border);
+    background: var(--surface);
+    flex-shrink: 0;
+  }
+  .progress-wrap {
+    flex: 1;
+    height: 2px;
+    background: var(--surface3);
+    border-radius: 2px;
+    overflow: hidden;
+    display: none;
+  }
+  .progress-wrap.visible { display: block; }
+  .progress-bar {
+    height: 100%;
+    background: var(--gold);
+    border-radius: 2px;
+    transition: width 0.25s ease;
+    width: 0%;
+  }
+  .status-msg {
+    font-family: var(--sans);
+    font-size: 11px;
+    color: var(--text3);
+    flex: 1;
+  }
+
+  /* ── TOAST ── */
+  #toast {
+    position: fixed;
+    bottom: 64px;
+    left: 50%;
+    transform: translateX(-50%) translateY(8px);
+    background: var(--surface3);
+    border: 1px solid var(--border2);
+    color: var(--text);
+    font-family: var(--sans);
+    font-size: 12px;
+    font-weight: 500;
+    padding: 8px 18px;
+    border-radius: var(--radius);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+    white-space: nowrap;
+    z-index: 999;
+    box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+  }
+  #toast.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  #toast.err  { border-color: rgba(255,69,58,0.4);  color: var(--red); }
+  #toast.good { border-color: rgba(48,209,88,0.4);  color: var(--green); }
+
+  /* scrollbar */
+  ::-webkit-scrollbar { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--surface4); border-radius: 10px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--border2); }
+
+  .recursive-row { margin-top: 6px; }
+</style>
+</head>
+<body>
+
+<!-- TITLEBAR -->
+<div class="titlebar">
+  <div class="titlebar-left">
+    <div class="logo">META<span>FIX</span></div>
+    <div class="exif-status" id="exifStatus" onclick="browseExiftool()" title="Click to change ExifTool location">
+      click to set exiftool path
+    </div>
+    <div class="exif-status" id="ffmpegStatus" onclick="browseFfmpeg()" title="FFmpeg required for AVI files — click to set">
+      ffmpeg: not set <span style="color:var(--text3);font-size:10px;">(AVI)</span>
+    </div>
+  </div>
+  <div class="titlebar-right">
+    <button class="btn success-btn" id="undoBtn" onclick="undoLast()" disabled>↩ undo last</button>
+    <button class="btn" id="cleanupBtn" onclick="cleanupBackups()" title="Delete all _original sidecar files for loaded files">🗑 clean backups</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+
+    <!-- MODE -->
+    <div class="sidebar-section">
+      <div class="section-label">Mode</div>
+      <div class="mode-tabs">
+        <button class="mode-tab active" data-mode="manual" onclick="setMode('manual')">manual</button>
+        <button class="mode-tab" data-mode="copy" onclick="setMode('copy')">copy</button>
+        <button class="mode-tab" data-mode="shift" onclick="setMode('shift')">shift</button>
+      </div>
+
+      <!-- MANUAL -->
+      <div class="mode-panel visible" id="panel-manual">
+        <label class="field-label">Date &amp; Time</label>
+        <input type="datetime-local" id="manualDt" step="1"/>
+      </div>
+
+      <!-- COPY -->
+      <div class="mode-panel" id="panel-copy">
+        <label class="field-label">Copy from field</label>
+        <select id="copySource"></select>
+      </div>
+
+      <!-- SHIFT -->
+      <div class="mode-panel" id="panel-shift">
+        <label class="field-label">Shift by (use negative to go back)</label>
+        <div class="shift-grid">
+          <div class="shift-field">
+            <label>Years</label>
+            <input type="number" id="shiftYears" value="0" min="-99" max="99"/>
+          </div>
+          <div class="shift-field">
+            <label>Months</label>
+            <input type="number" id="shiftMonths" value="0" min="-99" max="99"/>
+          </div>
+          <div class="shift-field">
+            <label>Days</label>
+            <input type="number" id="shiftDays" value="0" min="-999" max="999"/>
+          </div>
+          <div class="shift-field">
+            <label>Hours</label>
+            <input type="number" id="shiftHours" value="0" min="-999" max="999"/>
+          </div>
+          <div class="shift-field">
+            <label>Minutes</label>
+            <input type="number" id="shiftMins" value="0" min="-9999" max="9999"/>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DESTINATION FIELDS -->
+    <div class="sidebar-section">
+      <div class="section-label">Write to fields</div>
+      <div class="dest-fields-grid" id="destFields"></div>
+    </div>
+
+    <!-- OPTIONS -->
+    <div class="sidebar-section">
+      <div class="section-label">Options</div>
+      <label class="checkbox-row">
+        <input type="checkbox" id="optTouchFS" checked/>
+        <span>Update filesystem modified date</span>
+      </label>
+      <label class="checkbox-row">
+        <input type="checkbox" id="optWinCreation" checked title="Sets Windows 'Date created' via PowerShell after writing metadata. Works for all formats."/>
+        <span>Update Windows creation date <span style="color:var(--text3);font-size:10px;">(PowerShell)</span></span>
+      </label>
+      <label class="checkbox-row">
+        <input type="checkbox" id="optRename"/>
+        <span>Rename to timestamp</span>
+      </label>
+      <label class="checkbox-row recursive-row">
+        <input type="checkbox" id="optRecursive"/>
+        <span>Recursive folders</span>
+      </label>
+    </div>
+
+    <!-- ACTIONS -->
+    <div class="sidebar-section">
+      <div class="section-label">Actions</div>
+      <button class="btn primary" style="width:100%;justify-content:center;padding:10px;" onclick="applyChanges()">
+        ▶ apply changes
+      </button>
+      <div class="btn-row" style="margin-top:8px;">
+        <button class="btn" style="flex:1;justify-content:center;" onclick="previewChanges()">⊙ preview</button>
+        <button class="btn danger" style="flex:1;justify-content:center;" onclick="clearFiles()">✕ clear</button>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- FILE AREA -->
+  <div class="file-area">
+    <div class="file-toolbar">
+      <button class="btn" onclick="addFiles()">+ add files</button>
+      <button class="btn" onclick="addFolder()">⊞ add folder</button>
+      <button class="btn danger" id="removeSelectedBtn" onclick="removeSelected()" disabled>− remove selected</button>
+      <span class="sel-count" id="selCount"></span>
+      <span class="file-count" id="fileCount">0 files</span>
+
+      <!-- FILTER ROW — shown once files are loaded -->
+      <div class="toolbar-row2" id="filterRow">
+        <span class="filter-label">filter by source field:</span>
+        <select class="filter-select" id="fieldFilter" onchange="applyFieldFilter()">
+          <option value="">all fields</option>
+        </select>
+        <button class="btn" id="selectFilteredBtn" onclick="selectAllFiltered()" style="display:none;">
+          ☑ select all filtered
+        </button>
+      </div>
+    </div>
+
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-overlay" id="dropOverlay">drop files or folders here</div>
+
+      <div class="empty-state" id="emptyState">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+          <rect x="8" y="6" width="32" height="36" rx="3" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M16 16h16M16 22h16M16 28h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        drag &amp; drop media files here, or use buttons above
+      </div>
+
+      <div class="table-wrap" id="tableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:32px;"><input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)" style="accent-color:var(--gold);width:13px;height:13px;cursor:pointer;"/></th>
+              <th>Filename</th>
+              <th>Current date</th>
+              <th>Preview / After</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="fileTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM BAR -->
+<div class="bottombar">
+  <span class="status-msg" id="statusMsg">ready</span>
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── STATE ──────────────────────────────────────────────────────────────────────
+let files = [];         // [{path, name}]
+let currentMeta = {};   // path -> {value: "2026:06:06 21:34:15", field: "CreateDate"}
+let previewMeta = {};   // path -> date string
+let statusMap = {};     // path -> 'ready'|'ok'|'err'|'loading'
+let selectedPaths = new Set();
+let currentMode = 'manual';
+let destFieldKeys = [];
+let hasLastBatch = false;
+let activeFieldFilter = '';  // field name to filter table by, or '' for all
+
+// ── INIT ───────────────────────────────────────────────────────────────────────
+async function init() {
+  const cfg = await api('/api/config');
+  if (cfg.exiftool_path) {
+    document.getElementById('exifStatus').textContent = cfg.exiftool_path;
+    document.getElementById('exifStatus').classList.add('ok');
+  }
+  if (cfg.ffmpeg_path) {
+    document.getElementById('ffmpegStatus').innerHTML = cfg.ffmpeg_path +
+      ' <span style="color:var(--text3);font-size:10px;">(AVI)</span>';
+    document.getElementById('ffmpegStatus').classList.add('ok');
+  }
+
+  // populate copy source
+  const cs = document.getElementById('copySource');
+  cfg.copy_source_fields.forEach(f => {
+    const o = document.createElement('option'); o.value = f; o.textContent = f; cs.appendChild(o);
+  });
+
+  // populate dest fields
+  destFieldKeys = cfg.dest_fields;
+  const grid = document.getElementById('destFields');
+  destFieldKeys.forEach(f => {
+    const label = document.createElement('label');
+    label.className = 'checkbox-row';
+    label.innerHTML = `<input type="checkbox" class="dest-cb" data-field="${f}" checked/><span>${f}</span>`;
+    grid.appendChild(label);
+  });
+
+  // set default datetime to now
+  const now = new Date();
+  now.setSeconds(0, 0);
+  document.getElementById('manualDt').value = now.toISOString().slice(0, 19);
+
+  setupDrop();
+}
+
+// ── API HELPER ─────────────────────────────────────────────────────────────────
+async function api(endpoint, body = null) {
+  const opts = { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json' } };
+  if (body) opts.body = JSON.stringify(body);
+  const r = await fetch(endpoint, opts);
+  return r.json();
+}
+
+// ── EXIFTOOL / FFMPEG ──────────────────────────────────────────────────────────
+async function browseExiftool() {
+  const res = await api('/api/browse_exiftool', {});
+  if (res.ok) {
+    document.getElementById('exifStatus').textContent = res.path;
+    document.getElementById('exifStatus').classList.add('ok');
+    toast('ExifTool saved', 'good');
+  }
+}
+
+async function browseFfmpeg() {
+  const res = await api('/api/browse_ffmpeg', {});
+  if (res.ok) {
+    document.getElementById('ffmpegStatus').innerHTML = res.path +
+      ' <span style="color:var(--text3);font-size:10px;">(AVI)</span>';
+    document.getElementById('ffmpegStatus').classList.add('ok');
+    toast('FFmpeg saved', 'good');
+  }
+}
+
+// ── FILES ──────────────────────────────────────────────────────────────────────
+async function addFiles() {
+  setStatus('opening file dialog…');
+  const res = await api('/api/add_files', {});
+  await afterFilesChanged(res.files);
+}
+
+async function addFolder() {
+  setStatus('opening folder dialog…');
+  const recursive = document.getElementById('optRecursive').checked;
+  const res = await api('/api/add_folder', { recursive });
+  await afterFilesChanged(res.files);
+}
+
+async function clearFiles() {
+  await api('/api/clear_files', {});
+  files = []; currentMeta = {}; previewMeta = {}; statusMap = {}; selectedPaths.clear();
+  renderTable();
+  setStatus('cleared');
+}
+
+async function removeSelected() {
+  const paths = [...selectedPaths];
+  await api('/api/remove_files', { paths });
+  selectedPaths.clear();
+  files = files.filter(f => !paths.includes(f.path));
+  paths.forEach(p => { delete currentMeta[p]; delete previewMeta[p]; delete statusMap[p]; });
+  renderTable();
+}
+
+async function afterFilesChanged(newFiles) {
+  files = newFiles;
+  files.forEach(f => { if (!statusMap[f.path]) statusMap[f.path] = 'ready'; });
+  renderTable();
+  updateFileCount();
+  // async metadata read
+  await loadCurrentMeta();
+}
+
+async function loadCurrentMeta() {
+  if (!files.length) return;
+  setStatus('reading metadata…');
+  files.forEach(f => statusMap[f.path] = 'loading');
+  renderTable();
+  const res = await api('/api/read_metadata', { files: files.map(f => f.path) });
+  // res is now path -> {value, field}
+  currentMeta = { ...currentMeta, ...res };
+  files.forEach(f => statusMap[f.path] = 'ready');
+  renderTable();
+  setStatus(`${files.length} file${files.length !== 1 ? 's' : ''} loaded`);
+
+  // Update field filter dropdown and copy source hint
+  _updateFieldFilterOptions();
+  _updateCopySourceHint();
+}
+
+// ── DROP ───────────────────────────────────────────────────────────────────────
+// pywebviewFullPath is ONLY available Python-side inside DOMEventHandler.
+// JS File objects never have filesystem paths in pywebview's Qt backend.
+// Python's on_drop() calls these globals after processing.
+
+window.showDropOverlay = function() {
+  document.getElementById('dropOverlay').classList.add('visible');
+};
+window.hideDropOverlay = function() {
+  document.getElementById('dropOverlay').classList.remove('visible');
+};
+window.receiveDropResult = async function(newFiles) {
+  document.getElementById('dropOverlay').classList.remove('visible');
+  await afterFilesChanged(newFiles);
+};
+
+function setupDrop() {
+  const zone = document.getElementById('dropZone');
+  // Prevent browser default navigation on drop.
+  // Visual feedback is handled by Python's DOMEventHandler calling showDropOverlay/hideDropOverlay.
+  zone.addEventListener('dragover',  e => e.preventDefault());
+  zone.addEventListener('dragenter', e => e.preventDefault());
+  zone.addEventListener('drop',      e => e.preventDefault());
+}
+
+// ── MODE ───────────────────────────────────────────────────────────────────────
+function setMode(mode) {
+  currentMode = mode;
+  document.querySelectorAll('.mode-tab').forEach(t => t.classList.toggle('active', t.dataset.mode === mode));
+  document.querySelectorAll('.mode-panel').forEach(p => p.classList.remove('visible'));
+  document.getElementById(`panel-${mode}`).classList.add('visible');
+  // clear previews when mode changes
+  previewMeta = {};
+  renderTable();
+}
+
+// ── PREVIEW ───────────────────────────────────────────────────────────────────
+async function previewChanges() {
+  if (!files.length) { toast('no files loaded', 'err'); return; }
+  setStatus('computing preview…');
+  const payload = buildPayload();
+  payload.selected_paths = [...selectedPaths];
+  const scope = selectedPaths.size > 0 ? selectedPaths.size : files.length;
+  const res = await api('/api/preview', payload);
+  previewMeta = { ...previewMeta, ...res };
+  renderTable();
+  setStatus(`preview ready for ${scope} file${scope !== 1 ? 's' : ''} — check After column`);
+}
+
+// ── APPLY ─────────────────────────────────────────────────────────────────────
+async function applyChanges() {
+  if (!files.length) { toast('no files loaded', 'err'); return; }
+  const scope = selectedPaths.size > 0 ? selectedPaths.size : files.length;
+  const scopeLabel = selectedPaths.size > 0
+    ? `${scope} selected file${scope !== 1 ? 's' : ''}`
+    : `all ${scope} file${scope !== 1 ? 's' : ''}`;
+  setStatus(`applying to ${scopeLabel}…`);
+  showProgress(true);
+  setProgress(10);
+
+  const payload = buildPayload();
+  payload.touch_fs = document.getElementById('optTouchFS').checked;
+  payload.win_creation = document.getElementById('optWinCreation').checked;
+  payload.rename = document.getElementById('optRename').checked;
+  payload.dest_fields = getDestFields();
+  payload.selected_paths = [...selectedPaths];
+
+  const res = await api('/api/apply', payload);
+  setProgress(90);
+
+  if (res.error) { toast(res.error, 'err'); showProgress(false); setStatus('error'); return; }
+
+  // update file list (may have renamed)
+  files = res.files;
+  // mark statuses
+  files.forEach(f => statusMap[f.path] = 'ok');
+  if (res.errors && res.errors.length) {
+    res.errors.forEach(e => {
+      const name = e.split(':')[0];
+      const f = files.find(ff => ff.name === name);
+      if (f) statusMap[f.path] = 'err';
+    });
+  }
+
+  // refresh metadata
+  currentMeta = {};
+  previewMeta = {};
+  await loadCurrentMeta();
+
+  setProgress(100);
+  setTimeout(() => showProgress(false), 800);
+
+  hasLastBatch = true;
+  document.getElementById('undoBtn').disabled = false;
+
+  const errCount = res.errors ? res.errors.length : 0;
+  if (errCount > 0) {
+    const firstErr = res.errors[0];
+    toast(`${firstErr}`, 'err');
+    setStatus(`${errCount} error${errCount > 1 ? 's' : ''}: ${res.errors.join(' | ')}`);
+    console.error('Apply errors:', res.errors);
+  } else {
+    toast(`${scopeLabel} updated`, 'good');
+    setStatus(`applied to ${scopeLabel}`);
+  }
+}
+
+// ── UNDO ──────────────────────────────────────────────────────────────────────
+async function undoLast() {
+  if (!hasLastBatch) return;
+  setStatus('undoing…');
+  const res = await api('/api/undo', {});
+  if (res.errors && res.errors.length) {
+    toast(`undo: ${res.errors.length} errors`, 'err');
+  } else {
+    toast('undone', 'good');
+  }
+  hasLastBatch = false;
+  document.getElementById('undoBtn').disabled = true;
+  files.forEach(f => statusMap[f.path] = 'ready');
+  currentMeta = {}; previewMeta = {};
+  await loadCurrentMeta();
+}
+
+async function cleanupBackups() {
+  setStatus('cleaning up backups…');
+  const res = await api('/api/cleanup_backups', {});
+  if (res.errors && res.errors.length) {
+    toast(`cleanup: ${res.errors.length} errors`, 'err');
+    setStatus(`deleted ${res.count} folder${res.count !== 1 ? 's' : ''}, ${res.errors.length} errors`);
+  } else if (!res.count) {
+    toast('no BACKUPS folders found', '');
+    setStatus('no BACKUPS folders found');
+  } else {
+    toast(`BACKUPS folder${res.count !== 1 ? 's' : ''} deleted`, 'good');
+    setStatus(`cleaned up ${res.count} BACKUPS folder${res.count !== 1 ? 's' : ''}`);
+  }
+  hasLastBatch = false;
+  document.getElementById('undoBtn').disabled = true;
+}
+
+// ── BUILD PAYLOAD ─────────────────────────────────────────────────────────────
+function buildPayload() {
+  const p = { mode: currentMode };
+  if (currentMode === 'manual') {
+    let raw = document.getElementById('manualDt').value;
+    // Ensure seconds are present: "2017-08-10T15:00" → "2017-08-10T15:00:00"
+    if (raw.length === 16) raw = raw + ':00';
+    p.datetime = raw.replace('T', ' ').replace(/-/g, ':').replace(/(\d{4}):(\d{2}):(\d{2})/, '$1:$2:$3');
+  } else if (currentMode === 'copy') {
+    p.source_field = document.getElementById('copySource').value;
+  } else if (currentMode === 'shift') {
+    p.years   = parseInt(document.getElementById('shiftYears').value) || 0;
+    p.months  = parseInt(document.getElementById('shiftMonths').value) || 0;
+    p.days    = parseInt(document.getElementById('shiftDays').value) || 0;
+    p.hours   = parseInt(document.getElementById('shiftHours').value) || 0;
+    p.minutes = parseInt(document.getElementById('shiftMins').value) || 0;
+  }
+  return p;
+}
+
+function getDestFields() {
+  return [...document.querySelectorAll('.dest-cb:checked')].map(c => c.dataset.field);
+}
+
+// ── SELECTION ─────────────────────────────────────────────────────────────────
+function toggleRow(path, cb) {
+  if (cb.checked) selectedPaths.add(path);
+  else selectedPaths.delete(path);
+  document.querySelectorAll(`tr[data-path="${CSS.escape(path)}"]`).forEach(r => r.classList.toggle('selected', cb.checked));
+  updateSelectionCount();
+}
+
+function toggleSelectAll(masterCb) {
+  // Only toggles visible (filtered) rows
+  document.querySelectorAll('.row-cb').forEach(cb => {
+    cb.checked = masterCb.checked;
+    const path = cb.closest('tr').dataset.path;
+    if (masterCb.checked) selectedPaths.add(path);
+    else selectedPaths.delete(path);
+  });
+  document.querySelectorAll('tr.file-row').forEach(r => r.classList.toggle('selected', masterCb.checked));
+  updateSelectionCount();
+}
+
+// ── FIELD FILTER ──────────────────────────────────────────────────────────────
+function _updateFieldFilterOptions() {
+  // Collect all distinct source fields across loaded files
+  const fields = new Set();
+  for (const f of files) {
+    const entry = currentMeta[f.path];
+    if (entry?.field) fields.add(entry.field);
+  }
+  const sel = document.getElementById('fieldFilter');
+  const current = sel.value;
+  // Rebuild options
+  sel.innerHTML = '<option value="">all fields</option>';
+  [...fields].sort().forEach(field => {
+    const count = files.filter(f => currentMeta[f.path]?.field === field).length;
+    const o = document.createElement('option');
+    o.value = field;
+    o.textContent = `${field}  (${count})`;
+    sel.appendChild(o);
+  });
+  // Restore selection if still valid
+  if (current && [...fields].includes(current)) sel.value = current;
+  // Show filter row only when files loaded
+  document.getElementById('filterRow').classList.toggle('visible', files.length > 0);
+}
+
+function applyFieldFilter() {
+  activeFieldFilter = document.getElementById('fieldFilter').value;
+  const hasFilter = !!activeFieldFilter;
+  document.getElementById('selectFilteredBtn').style.display = hasFilter ? '' : 'none';
+  renderTable();
+}
+
+function selectAllFiltered() {
+  // Select all rows currently visible under the active filter
+  const filtered = activeFieldFilter
+    ? files.filter(f => currentMeta[f.path]?.field === activeFieldFilter)
+    : files;
+  filtered.forEach(f => selectedPaths.add(f.path));
+  renderTable();
+  updateSelectionCount();
+}
+
+// ── SELECTION COUNT ───────────────────────────────────────────────────────────
+function updateSelectionCount() {
+  const el = document.getElementById('selCount');
+  if (selectedPaths.size > 0) {
+    el.textContent = `${selectedPaths.size} selected`;
+    el.classList.add('visible');
+  } else {
+    el.classList.remove('visible');
+  }
+  document.getElementById('removeSelectedBtn').disabled = selectedPaths.size === 0;
+}
+
+// ── COPY SOURCE HINT ──────────────────────────────────────────────────────────
+function _updateCopySourceHint() {
+  // Count which field is the source for each loaded file
+  const fieldCounts = {};
+  for (const f of files) {
+    const entry = currentMeta[f.path];
+    if (entry && entry.field) {
+      fieldCounts[entry.field] = (fieldCounts[entry.field] || 0) + 1;
+    }
+  }
+  // Find the most common field
+  const topField = Object.entries(fieldCounts).sort((a, b) => b[1] - a[1])[0]?.[0];
+
+  // Update the copy source dropdown: mark each option
+  const sel = document.getElementById('copySource');
+  for (const opt of sel.options) {
+    const count = fieldCounts[opt.value] || 0;
+    if (count > 0) {
+      opt.textContent = `${opt.value}  ← ${count} file${count !== 1 ? 's' : ''}`;
+    } else {
+      opt.textContent = opt.value;
+    }
+  }
+  // Auto-select the most common one
+  if (topField) sel.value = topField;
+}
+
+// ── RENDER TABLE ──────────────────────────────────────────────────────────────
+function renderTable() {
+  const tbody = document.getElementById('fileTable');
+  const empty = document.getElementById('emptyState');
+  const wrap  = document.getElementById('tableWrap');
+
+  if (!files.length) {
+    empty.classList.remove('hidden');
+    wrap.classList.remove('visible');
+    updateFileCount();
+    updateSelectionCount();
+    return;
+  }
+  empty.classList.add('hidden');
+  wrap.classList.add('visible');
+
+  // Apply field filter
+  const visible = activeFieldFilter
+    ? files.filter(f => currentMeta[f.path]?.field === activeFieldFilter)
+    : files;
+
+  tbody.innerHTML = visible.map(f => {
+    const entry = currentMeta[f.path];
+    const curVal   = entry?.value || '—';
+    const curField = entry?.field || '';
+    const prev = previewMeta[f.path] || '';
+    const st   = statusMap[f.path] || 'ready';
+    const sel  = selectedPaths.has(f.path);
+
+    const afterCls = prev && prev !== curVal ? 'date-col after' : 'date-col no-change';
+    const afterVal = prev || '—';
+
+    const fieldLabel = curField
+      ? ` <span style="color:var(--text3);font-size:10px;">(${curField})</span>`
+      : '';
+
+    const badgeMap = {
+      ok:      '<span class="status-badge ok">ok</span>',
+      err:     '<span class="status-badge err">err</span>',
+      loading: '<span class="status-badge loading">…</span>',
+      ready:   '<span class="status-badge ready">—</span>'
+    };
+
+    return `<tr class="file-row${sel ? ' selected' : ''}" data-path="${escHtml(f.path)}">
+      <td style="width:32px;text-align:center;">
+        <input type="checkbox" class="row-cb" ${sel ? 'checked' : ''} style="accent-color:var(--gold);width:13px;height:13px;cursor:pointer;" onclick="toggleRow('${escJs(f.path)}', this)"/>
+      </td>
+      <td class="name-col" title="${escHtml(f.path)}">${escHtml(f.name)}</td>
+      <td class="date-col" title="${escHtml(curVal + (curField ? ' (' + curField + ')' : ''))}">${escHtml(curVal)}${fieldLabel}</td>
+      <td class="${afterCls}" title="${escHtml(afterVal)}">${escHtml(afterVal)}</td>
+      <td class="status-col">${badgeMap[st] || badgeMap.ready}</td>
+    </tr>`;
+  }).join('');
+
+  updateFileCount();
+  updateSelectionCount();
+}
+
+function updateFileCount() {
+  const visible = activeFieldFilter
+    ? files.filter(f => currentMeta[f.path]?.field === activeFieldFilter).length
+    : files.length;
+  const total = files.length;
+  const el = document.getElementById('fileCount');
+  if (activeFieldFilter && visible !== total) {
+    el.textContent = `${visible} shown / ${total} total`;
+  } else {
+    el.textContent = `${total} file${total !== 1 ? 's' : ''}`;
+  }
+}
+
+// ── UI HELPERS ────────────────────────────────────────────────────────────────
+function setStatus(msg) { document.getElementById('statusMsg').textContent = msg; }
+function showProgress(v) { document.getElementById('progressWrap').classList.toggle('visible', v); }
+function setProgress(pct) { document.getElementById('progressBar').style.width = pct + '%'; }
+
+let toastTimer;
+function toast(msg, type = '') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'show' + (type ? ' ' + type : '');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { el.className = ''; }, 2800);
+}
+
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function escJs(s) {
+  return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+}
+
+init();
+</script>
+</body>
+</html>
