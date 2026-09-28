@@ -14,6 +14,10 @@ MEDIA_EXTS = {
 
 AVI_EXTS = {".avi"}
 
+# QuickTime containers (MP4/MOV) store dates as UTC internally. ExifTool's
+# default behaviour correctly converts local time → UTC when writing these files.
+QT_EXTS = {".mov", ".mp4", ".m4v", ".3gp", ".mkv"}
+
 PHOTO_FIELDS = ["DateTimeOriginal", "CreateDate", "ModifyDate"]
 VIDEO_FIELDS = ["CreateDate", "MediaCreateDate", "TrackCreateDate", "TrackModifyDate", "ModifyDate"]
 ALL_DEST_FIELDS = list(dict.fromkeys(PHOTO_FIELDS + VIDEO_FIELDS))
@@ -48,13 +52,44 @@ def exiftool_path():
     return p
 
 def run_exiftool(args):
-    cmd = [exiftool_path()] + args
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        encoding="utf-8",
-        errors="replace"
-    )
+    """All ExifTool read calls. Uses a UTF-8 argfile to avoid Windows codepage
+    mangling of Unicode paths (e.g. curly apostrophes in folder names)."""
+    import tempfile
+    et = exiftool_path()
+    # Write args to a temp file in UTF-8 — ExifTool reads it with -@
+    with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8',
+                                     suffix='.txt', delete=False) as f:
+        f.write('\n'.join(args))
+        argfile = f.name
+    try:
+        result = subprocess.run(
+            [et, '-charset', 'filename=UTF8', '-@', argfile],
+            capture_output=True, encoding='utf-8', errors='replace'
+        )
+    finally:
+        try: os.unlink(argfile)
+        except: pass
+    return result
+
+def run_exiftool_write(args):
+    """All ExifTool write calls. Same argfile approach plus -m (ignore minor errors).
+    ExifTool's default behaviour treats input dates as local time, which is correct
+    for both JPEG (EXIF local time) and MP4/MOV (QuickTime UTC — ExifTool converts
+    local→UTC automatically when writing QuickTime containers)."""
+    import tempfile
+    et = exiftool_path()
+    with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8',
+                                     suffix='.txt', delete=False) as f:
+        f.write('\n'.join(args))
+        argfile = f.name
+    try:
+        result = subprocess.run(
+            [et, '-charset', 'filename=UTF8', '-m', '-@', argfile],
+            capture_output=True, encoding='utf-8', errors='replace'
+        )
+    finally:
+        try: os.unlink(argfile)
+        except: pass
     return result
 
 def normalise_path(p):
@@ -168,19 +203,25 @@ def exiftool_error(r):
     return combined or None
 
 def set_win_creation_time(filepath, dt_str):
-    """Set Windows filesystem CreationTime via PowerShell.
-    dt_str: ExifTool format '2024:06:01 14:32:09'
-    Works for all file formats — no extra tools needed."""
+    """Set Windows filesystem CreationTime and LastWriteTime via PowerShell.
+    Uses -EncodedCommand (Base64 UTF-16LE) to bypass all quoting/encoding
+    issues with Unicode characters in paths (e.g. curly apostrophes)."""
+    import base64
     try:
-        # Convert "2024:06:01 14:32:09" → "2024-06-01 14:32:09"
         win_dt = dt_str[:10].replace(":", "-") + dt_str[10:]
-        ps_cmd = (
-            f'$f = Get-Item -LiteralPath \'{filepath}\'; '
-            f'$f.CreationTime = \'{win_dt}\'; '
-            f'$f.LastWriteTime = \'{win_dt}\''
+        # Build the PS script with the path embedded as a here-string variable
+        # to completely sidestep quoting. Encode as UTF-16LE for -EncodedCommand.
+        ps_script = (
+            f'$p = @"\n{filepath}\n"@\n'
+            f'$p = $p.Trim()\n'
+            f'$f = Get-Item -LiteralPath $p\n'
+            f'$f.CreationTime = "{win_dt}"\n'
+            f'$f.LastWriteTime = "{win_dt}"\n'
         )
+        encoded = base64.b64encode(ps_script.encode("utf-16-le")).decode("ascii")
         r = subprocess.run(
-            ["powershell", "-NoProfile", "-NonInteractive", "-Command", ps_cmd],
+            ["powershell", "-NoProfile", "-NonInteractive",
+             "-EncodedCommand", encoded],
             capture_output=True, encoding="utf-8", errors="replace"
         )
         if r.returncode != 0:
@@ -557,8 +598,8 @@ def apply_changes():
             continue
 
         # ── All other formats: use ExifTool ──────────────────────────────────
-        cmd = [exiftool_path(), "-m"]
-        written_dt = None  # track the date we're writing for PowerShell
+        write_args = []
+        written_dt = None
 
         if mode == "manual":
             dt = data.get("datetime", "")
@@ -566,19 +607,18 @@ def apply_changes():
                 return jsonify({"error": "No datetime provided"}), 400
             written_dt = dt
             for d in dest_fields:
-                cmd.append(f"-{d}={dt}")
+                write_args.append(f"-{d}={dt}")
             if touch_fs:
-                cmd.append(f"-FileModifyDate={dt}")
+                write_args.append(f"-FileModifyDate={dt}")
 
         elif mode == "copy":
             src = data.get("source_field", "DateTimeOriginal")
-            cmd += ["-tagsFromFile", "@"]
+            write_args += ["-tagsFromFile", "@"]
             for d in dest_fields:
                 if d != src:
-                    cmd.append(f"-{d}<{src}")
+                    write_args.append(f"-{d}<{src}")
             if touch_fs:
-                cmd.append(f"-FileModifyDate<{src}")
-            # Read the source value so we can pass it to PowerShell
+                write_args.append(f"-FileModifyDate<{src}")
             if win_creation:
                 try:
                     r2 = run_exiftool(["-j", f"-{src}", f])
@@ -606,15 +646,15 @@ def apply_changes():
                 continue
             written_dt = new_dt
             for d in dest_fields:
-                cmd.append(f"-{d}={new_dt}")
+                write_args.append(f"-{d}={new_dt}")
             if touch_fs:
-                cmd.append(f"-FileModifyDate={new_dt}")
+                write_args.append(f"-FileModifyDate={new_dt}")
 
-        cmd.append(f)
+        write_args.append(f)
 
-        print("CMD:", cmd)
+        print("WRITE ARGS:", write_args)
         try:
-            r = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace")
+            r = run_exiftool_write(write_args)
             print("STDOUT:", r.stdout.strip())
             print("STDERR:", r.stderr.strip())
             err_text = exiftool_error(r)
