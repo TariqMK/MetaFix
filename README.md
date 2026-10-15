@@ -139,27 +139,27 @@ MetaFix never modifies pixel data, video codec data, audio, or compression. It o
 
 ```text
 MetaFix/
-??? MetaFix.py                 Desktop entry point (used by MetaFix.bat)
-??? metafix/
-?   ??? __init__.py            Flask application factory
-?   ??? desktop.py             Window, server lifecycle, native drag-and-drop
-?   ??? routes.py              HTTP endpoints and native file dialogs
-?   ??? config.py              Configuration and shared session state
-?   ??? fields.py              Supported formats and metadata fields
-?   ??? dates.py               Date calculations and Windows timestamps
-?   ??? metadata.py            Metadata reading and source selection
-?   ??? exiftool.py            ExifTool subprocess wrapper
-?   ??? ffmpeg.py              AVI metadata reading and remuxing
-?   ??? operations.py          Preview, apply, undo, and cleanup workflows
-?   ??? backups.py             Backup paths and sidecar placement
-?   ??? files.py               Loaded-file collection and renaming
-?   ??? templates/index.html   Interface markup
-?   ??? static/
-?       ??? css/app.css        Interface styles
-?       ??? js/app.js          Interface logic
-??? docs/assets/banner.svg     README banner
-??? requirements.txt
-??? README.md
+├── MetaFix.py                 Desktop entry point (used by MetaFix.bat)
+├── metafix/
+│   ├── __init__.py            Flask application factory
+│   ├── desktop.py             Window, server lifecycle, native drag-and-drop
+│   ├── routes.py              HTTP endpoints and native file dialogs
+│   ├── config.py              Configuration and shared session state
+│   ├── fields.py              Supported formats and metadata fields
+│   ├── dates.py               Date calculations and Windows timestamps
+│   ├── metadata.py            Metadata reading and source selection
+│   ├── exiftool.py            ExifTool subprocess wrapper
+│   ├── ffmpeg.py              AVI metadata reading and remuxing
+│   ├── operations.py          Preview, apply, undo, and cleanup workflows
+│   ├── backups.py             Backup paths and sidecar placement
+│   ├── files.py               Loaded-file collection and renaming
+│   ├── templates/index.html   Interface markup
+│   └── static/
+        ├── css/app.css        Interface styles
+        └── js/app.js          Interface logic
+├── docs/assets/banner.svg     README banner
+├── requirements.txt
+└── README.md
 ```
 
 The interface calls Flask routes, which delegate batch work to `operations.py`.
