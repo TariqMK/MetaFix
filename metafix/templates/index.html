@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MetaFix</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/app.css') }}"/>
+</head>
+<body>
+
+<!-- TITLEBAR -->
+<div class="titlebar">
+  <div class="titlebar-left">
+    <div class="logo">META<span>FIX</span></div>
+    <div class="exif-status" id="exifStatus" onclick="browseExiftool()" title="Click to change ExifTool location">
+      click to set exiftool path
+    </div>
+    <div class="exif-status" id="ffmpegStatus" onclick="browseFfmpeg()" title="FFmpeg required for AVI files — click to set">
+      ffmpeg: not set <span style="color:var(--text3);font-size:10px;">(AVI)</span>
+    </div>
+  </div>
+  <div class="titlebar-right">
+    <button class="btn success-btn" id="undoBtn" onclick="undoLast()" disabled>↩ undo last</button>
+    <button class="btn" id="cleanupBtn" onclick="cleanupBackups()" title="Delete all _original sidecar files for loaded files">🗑 clean backups</button>
+  </div>
+</div>
+
+<!-- MAIN -->
+<div class="main">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar">
+
+    <!-- MODE -->
+    <div class="sidebar-section">
+      <div class="section-label">Mode</div>
+      <div class="mode-tabs">
+        <button class="mode-tab active" data-mode="manual" onclick="setMode('manual')">manual</button>
+        <button class="mode-tab" data-mode="copy" onclick="setMode('copy')">copy</button>
+        <button class="mode-tab" data-mode="shift" onclick="setMode('shift')">shift</button>
+      </div>
+
+      <!-- MANUAL -->
+      <div class="mode-panel visible" id="panel-manual">
+        <label class="field-label">Date &amp; Time</label>
+        <input type="datetime-local" id="manualDt" step="1"/>
+      </div>
+
+      <!-- COPY -->
+      <div class="mode-panel" id="panel-copy">
+        <label class="field-label">Copy from field</label>
+        <select id="copySource"></select>
+      </div>
+
+      <!-- SHIFT -->
+      <div class="mode-panel" id="panel-shift">
+        <label class="field-label">Shift by (use negative to go back)</label>
+        <div class="shift-grid">
+          <div class="shift-field">
+            <label>Years</label>
+            <input type="number" id="shiftYears" value="0" min="-99" max="99"/>
+          </div>
+          <div class="shift-field">
+            <label>Months</label>
+            <input type="number" id="shiftMonths" value="0" min="-99" max="99"/>
+          </div>
+          <div class="shift-field">
+            <label>Days</label>
+            <input type="number" id="shiftDays" value="0" min="-999" max="999"/>
+          </div>
+          <div class="shift-field">
+            <label>Hours</label>
+            <input type="number" id="shiftHours" value="0" min="-999" max="999"/>
+          </div>
+          <div class="shift-field">
+            <label>Minutes</label>
+            <input type="number" id="shiftMins" value="0" min="-9999" max="9999"/>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- DESTINATION FIELDS -->
+    <div class="sidebar-section">
+      <div class="section-label">Write to fields</div>
+      <div class="dest-fields-grid" id="destFields"></div>
+    </div>
+
+    <!-- OPTIONS -->
+    <div class="sidebar-section">
+      <div class="section-label">Options</div>
+      <label class="checkbox-row">
+        <input type="checkbox" id="optTouchFS" checked/>
+        <span>Update filesystem modified date</span>
+      </label>
+      <label class="checkbox-row">
+        <input type="checkbox" id="optWinCreation" checked title="Sets Windows 'Date created' via PowerShell after writing metadata. Works for all formats."/>
+        <span>Update Windows creation date <span style="color:var(--text3);font-size:10px;">(PowerShell)</span></span>
+      </label>
+      <label class="checkbox-row">
+        <input type="checkbox" id="optRename"/>
+        <span>Rename to timestamp</span>
+      </label>
+      <label class="checkbox-row recursive-row">
+        <input type="checkbox" id="optRecursive"/>
+        <span>Recursive folders</span>
+      </label>
+    </div>
+
+    <!-- ACTIONS -->
+    <div class="sidebar-section">
+      <div class="section-label">Actions</div>
+      <button class="btn primary" style="width:100%;justify-content:center;padding:10px;" onclick="applyChanges()">
+        ▶ apply changes
+      </button>
+      <div class="btn-row" style="margin-top:8px;">
+        <button class="btn" style="flex:1;justify-content:center;" onclick="previewChanges()">⊙ preview</button>
+        <button class="btn danger" style="flex:1;justify-content:center;" onclick="clearFiles()">✕ clear</button>
+      </div>
+    </div>
+
+  </aside>
+
+  <!-- FILE AREA -->
+  <div class="file-area">
+    <div class="file-toolbar">
+      <button class="btn" onclick="addFiles()">+ add files</button>
+      <button class="btn" onclick="addFolder()">⊞ add folder</button>
+      <button class="btn danger" id="removeSelectedBtn" onclick="removeSelected()" disabled>− remove selected</button>
+      <span class="sel-count" id="selCount"></span>
+      <span class="file-count" id="fileCount">0 files</span>
+
+      <!-- FILTER ROW — shown once files are loaded -->
+      <div class="toolbar-row2" id="filterRow">
+        <span class="filter-label">filter by source field:</span>
+        <select class="filter-select" id="fieldFilter" onchange="applyFieldFilter()">
+          <option value="">all fields</option>
+        </select>
+        <button class="btn" id="selectFilteredBtn" onclick="selectAllFiltered()" style="display:none;">
+          ☑ select all filtered
+        </button>
+      </div>
+    </div>
+
+    <div class="drop-zone" id="dropZone">
+      <div class="drop-overlay" id="dropOverlay">drop files or folders here</div>
+
+      <div class="empty-state" id="emptyState">
+        <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+          <rect x="8" y="6" width="32" height="36" rx="3" stroke="currentColor" stroke-width="1.5"/>
+          <path d="M16 16h16M16 22h16M16 28h10" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+        </svg>
+        drag &amp; drop media files here, or use buttons above
+      </div>
+
+      <div class="table-wrap" id="tableWrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:32px;"><input type="checkbox" id="selectAll" onclick="toggleSelectAll(this)" style="accent-color:var(--gold);width:13px;height:13px;cursor:pointer;"/></th>
+              <th>Filename</th>
+              <th>Current date</th>
+              <th>Preview / After</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="fileTable"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- BOTTOM BAR -->
+<div class="bottombar">
+  <span class="status-msg" id="statusMsg">ready</span>
+  <div class="progress-wrap" id="progressWrap">
+    <div class="progress-bar" id="progressBar"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>
