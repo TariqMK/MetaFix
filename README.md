@@ -55,9 +55,55 @@ On first launch, click the path bar at the top of the window and point it to you
 
 ---
 
-## Packaging
+## Builds and releases
 
-The legacy PyInstaller spec is in the ignored `Meta/` directory and has not been updated for the package layout. It still refers to `app.py` and the old asset directories; the previous build command is not currently supported.
+In GitHub, open **Actions > Build and release > Run workflow**. Choose the
+branch/commit, then select both inputs before starting:
+
+- **Visibility:** `draft` (default) or `public` (published GitHub release).
+- **Bump:** `major`, `minor`, or `patch` (default).
+
+The workflow builds Windows x64, macOS Apple Silicon ARM64 (no Intel build), and
+Linux x64 archives using native runners. All three builds must succeed before
+any release is created. The workflow must be on the default branch for the Run
+workflow button to appear. No additional secrets are required; the workflow uses
+GitHub's built-in token with release-write permissions in the relevant jobs.
+
+Version numbers come from the highest semantic version across **all paginated
+release records (including drafts) and Git tags**, rather than only the latest
+published release. With no version history, the starting point is `0.0.0`.
+For example, if `v1.2.3` is public and `v1.3.0` is a draft, patch produces
+`v1.3.1`, minor produces `v1.4.0`, and major produces `v2.0.0`.
+Prerelease tags also reserve their base version. Unrelated tag names are ignored.
+
+Releases are tagged `vMAJOR.MINOR.PATCH` at the exact commit that was built.
+The allocated version is embedded in each build and available as
+`metafix.__version__`; source checkouts report `0.0.0+dev`. The workflow does not
+commit version changes back to your branch. Tags and release records are the
+persistent version history, including drafts. Workflows run serially to avoid
+allocating duplicate versions.
+
+Each release starts as a draft, receives all three archives, and is published
+only if `public` was selected. An upload failure leaves a draft for inspection.
+A new run counts that version and advances again. To publish an existing draft
+without incrementing, use **Releases > Edit > Publish release** instead.
+
+Build downloads are ZIP files for Windows and macOS, and a tar.gz file for Linux.
+Extract the archive before running it. ExifTool and FFmpeg are external tools and
+are not bundled. Windows filesystem creation-time updates require Windows.
+The macOS app is unsigned and not notarized; Linux builds target Ubuntu 22.04 or
+compatible newer desktop distributions and require system desktop libraries.
+Cross-platform native GUI and media editing still require testing on each OS.
+
+For a local build, use Python 3.12 and run:
+
+```bash
+python -m pip install -r packaging/requirements.txt
+python scripts/build.py --version 1.0.0
+```
+
+The tracked build script packages the current package layout. The legacy spec
+in ignored `Meta/` is unchanged and is not used by this workflow.
 
 ## Usage
 

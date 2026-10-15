@@ -2,3 +2,9 @@ Meta/
 venv/
 MetaFix.bat
 data/
+build/
+dist/
+release-assets/
+metafix/_version.txt
+__pycache__/
+*.pyc

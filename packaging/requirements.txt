@@ -1,0 +1,5 @@
+# One Qt binding across all three platforms, including native Apple Silicon.
+flask>=3,<4
+pywebview[pyside6]>=6,<7
+python-dateutil>=2.9,<3
+pyinstaller>=6.16,<7
