@@ -13,13 +13,14 @@ Built for the common situation where photos come off a phone, cloud service, or 
 - **Field source indicator** — the Current date column shows which EXIF field the date was read from (e.g. `2026:06:06 21:34:15 (CreateDate)`)
 - **Copy source hint** — the copy mode dropdown auto-selects the most common source field across your loaded files and annotates each option with a file count
 - **Filter by source field** — filter the file list to show only files whose date comes from a specific field, then select all of them with one click
-- **Selection-aware actions** — preview and apply only affect ticked files; unticked files are never touched
+- **Selection-aware actions** — preview and apply affect ticked files when any are selected; with nothing selected, they affect all loaded files
 - **Drag and drop** — drop files or folders directly onto the window
 - **Recursive folder scan** — optional, toggled per session
 - **Rename to timestamp** — renames files to `YYYY-MM-DD_HH-MM-SS_originalname.ext` after writing metadata, with `(1)`, `(2)` duplicate protection
-- **BACKUPS folder** — originals are backed up to a `BACKUPS/` subfolder in the same directory before any changes are made
+- **BACKUPS folder** — originals are retained in a `BACKUPS/` subfolder (ExifTool sidecars are moved after successful writes; AVI originals are copied before replacement)
 - **Undo** — restores the last batch from the BACKUPS folder
 - **Clean backups** — deletes the BACKUPS folders once you're satisfied
+- **Build version** - shown beneath the MetaFix name in muted text; source runs show `v0.0.0+dev`
 - **ExifTool path memory** — set once, remembered in `data/config.json` forever
 - **Non-destructive** — only metadata headers are modified; pixel data, video codec, and quality are never touched
 
@@ -36,29 +37,31 @@ Built for the common situation where photos come off a phone, cloud service, or 
 
 ## Requirements
 
-- **Windows** (tested on Windows 10/11)
-- **Python 3.10+**
-- **ExifTool** — download the Windows executable from [exiftool.org](https://exiftool.org/) and place it anywhere on your machine
+- **Windows 10/11**, **macOS Apple Silicon**, or a compatible **Linux x64 desktop**. Windows is the established runtime; native media editing on macOS/Linux still needs verification.
+- **Python 3.10+** for source runs; release builds use Python 3.12. Packaged downloads do not require a separate Python installation.
+- **ExifTool**, supplied separately, for metadata reads and writes.
+- **FFmpeg and ffprobe**, supplied separately, for AVI support.
+- A writable app location for saved tool paths in `data/config.json`.
 
 ---
 
 ## Installation
 
 ```bash
-git clone https://github.com/yourname/MetaFix
+git clone https://github.com/TariqMK/MetaFix.git
 cd MetaFix
 pip install -r requirements.txt
 python MetaFix.py
 ```
 
-On first launch, click the path bar at the top of the window and point it to your `exiftool.exe`. This is saved in `data/config.json` and never needs to be set again.
+On first launch, click the ExifTool path bar and select its executable. For AVI files, also set FFmpeg and make ffprobe available. Paths are saved in `data/config.json`; the directory and file are created when you first save a tool path. Keep the app in a writable location. The pickers currently prefer `.exe` files; use All files on other platforms.
 
 ---
 
 ## Builds and releases
 
 In GitHub, open **Actions > Build and release > Run workflow**. Choose the
-branch/commit, then select both inputs before starting:
+branch, then select both inputs before starting. This workflow runs manually only:
 
 - **Visibility:** `draft` (default) or `public` (published GitHub release).
 - **Bump:** `major`, `minor`, or `patch` (default).
@@ -78,7 +81,7 @@ Prerelease tags also reserve their base version. Unrelated tag names are ignored
 
 Releases are tagged `vMAJOR.MINOR.PATCH` at the exact commit that was built.
 The allocated version is embedded in each build and available as
-`metafix.__version__`; source checkouts report `0.0.0+dev`. The workflow does not
+`metafix.__version__` and displayed beneath the MetaFix name in muted text; source checkouts report `0.0.0+dev`. The workflow does not
 commit version changes back to your branch. Tags and release records are the
 persistent version history, including drafts. Workflows run serially to avoid
 allocating duplicate versions.
@@ -93,7 +96,7 @@ Extract the archive before running it. ExifTool and FFmpeg are external tools an
 are not bundled. Windows filesystem creation-time updates require Windows.
 The macOS app is unsigned and not notarized; Linux builds target Ubuntu 22.04 or
 compatible newer desktop distributions and require system desktop libraries.
-Cross-platform native GUI and media editing still require testing on each OS.
+The cross-platform builds were reported working after the asset-path fix. Native GUI and media editing still require end-to-end testing on each OS.
 
 For a local build, use Python 3.12 and run:
 
@@ -128,7 +131,7 @@ DateTimeOriginal → ContentCreateDate → CreateDate → MediaCreateDate
 
 ### 3 — Select files
 
-Check individual rows or use the header checkbox to select all visible rows. The toolbar shows a **gold pill** with the current selection count.
+When any files are checked, preview and apply use that selection. **With nothing checked, both operate on all loaded files**, even if a source filter is active. Check individual rows or use the header checkbox to select all visible rows. The toolbar shows a **gold pill** with the current selection count.
 
 Use the **filter by source field** dropdown to narrow the table to files that share a particular source field. A **select all filtered** button appears when a filter is active, letting you select exactly that subset in one click.
 
@@ -149,7 +152,7 @@ The sidebar shows all writable EXIF/metadata fields. All are ticked by default. 
 
 ### 5 — Preview
 
-Click **⊙ preview** to populate the After column without writing anything. The After column highlights in gold where the value will change, and stays dim where it won't. Unselected files show no After value.
+Click **⊙ preview** to populate the After column without writing anything. The After column highlights in gold where the value will change, and stays dim where it won't. When a selection is active, the preview request covers only selected files. Preview values from earlier requests may remain until refreshed or cleared.
 
 ### 6 — Apply
 
@@ -163,21 +166,29 @@ Click **▶ apply changes**. The status bar shows exactly how many files were pr
 
 ---
 
-## What ExifTool cannot change
+## Windows filesystem dates
 
-**Windows "Date created"** (`FileCreateDate`) is a filesystem property set by the OS, not an EXIF field. ExifTool cannot modify it via normal file APIs on Windows. To update it you need a PowerShell command:
+The **Update Windows creation date (PowerShell)** option sets filesystem
+CreationTime and LastWriteTime after successful metadata writes. This is
+separate from embedded fields such as `DateTimeOriginal`. It requires Windows
+and PowerShell; leave it disabled on macOS/Linux. PowerShell failures are
+currently logged and may not appear in the per-file error summary.
 
-```powershell
-(Get-Item "C:\path\to\file.jpg").CreationTime = "2024-05-01 14:32:00"
-```
-
-"Date modified" (`FileModifyDate`) and "Date taken" (`DateTimeOriginal`) are writable by ExifTool normally and handled by MetaFix.
+**Update filesystem date** controls ExifTool's `FileModifyDate` write for
+non-AVI files. The PowerShell option also sets LastWriteTime independently.
 
 ---
 
 ## File safety
 
-MetaFix never modifies pixel data, video codec data, audio, or compression. It only rewrites metadata headers. The BACKUPS folder gives you a full byte-for-byte copy of every file before it was touched.
+ExifTool updates metadata; AVI files are remuxed with FFmpeg stream copy,
+without re-encoding. Original files are retained in `BACKUPS/`.
+
+Undo currently finds backups by the original filename. Repeated edits can
+restore an older backup, and undo after renaming can leave the renamed copy in
+place. Keep backups until you have checked the results. Cleanup permanently
+deletes whole `BACKUPS/` directories associated with loaded files or the last
+batch; it is not limited to individual files in the latest operation.
 
 ---
 
@@ -185,27 +196,32 @@ MetaFix never modifies pixel data, video codec data, audio, or compression. It o
 
 ```text
 MetaFix/
-├── MetaFix.py                 Desktop entry point (used by MetaFix.bat)
-├── metafix/
-│   ├── __init__.py            Flask application factory
-│   ├── desktop.py             Window, server lifecycle, native drag-and-drop
-│   ├── routes.py              HTTP endpoints and native file dialogs
-│   ├── config.py              Configuration and shared session state
-│   ├── fields.py              Supported formats and metadata fields
-│   ├── dates.py               Date calculations and Windows timestamps
-│   ├── metadata.py            Metadata reading and source selection
-│   ├── exiftool.py            ExifTool subprocess wrapper
-│   ├── ffmpeg.py              AVI metadata reading and remuxing
-│   ├── operations.py          Preview, apply, undo, and cleanup workflows
-│   ├── backups.py             Backup paths and sidecar placement
-│   ├── files.py               Loaded-file collection and renaming
-│   ├── templates/index.html   Interface markup
-│   └── static/
-        ├── css/app.css        Interface styles
-        └── js/app.js          Interface logic
-├── docs/assets/banner.svg     README banner
-├── requirements.txt
-└── README.md
+|-- MetaFix.py                  Desktop launcher
+|-- metafix/
+|   |-- __init__.py             Flask factory and build version
+|   |-- desktop.py              Window, server, drag-and-drop
+|   |-- routes.py               HTTP endpoints and file dialogs
+|   |-- config.py               Configuration and session state
+|   |-- fields.py               Supported formats and fields
+|   |-- dates.py                Date shifts and Windows timestamps
+|   |-- metadata.py             Metadata reads and source selection
+|   |-- exiftool.py             ExifTool adapter
+|   |-- ffmpeg.py               AVI adapter
+|   |-- operations.py           Preview, apply, undo, cleanup
+|   |-- backups.py              Backup placement
+|   |-- files.py                File collection and renaming
+|   |-- templates/index.html    Interface markup
+|   `-- static/
+|       |-- css/app.css         Styles
+|       `-- js/app.js           Interface logic
+|-- .github/workflows/release.yml
+|-- scripts/                    Build, versioning, smoke checks
+|-- tests/                      Version and build-path checks
+|-- packaging/requirements.txt  Release build dependencies
+|-- docs/assets/banner.svg      README banner
+|-- data/config.json            Generated local settings (ignored)
+|-- requirements.txt            Source runtime dependencies
+`-- README.md
 ```
 
 The interface calls Flask routes, which delegate batch work to `operations.py`.
@@ -213,12 +229,14 @@ Metadata adapters run ExifTool or FFmpeg; native window integration lives in
 `desktop.py`. Flask resolves templates and static assets relative to the package.
 
 `data/config.json` is stored relative to the app directory, independently of the
-working directory. In a packaged build, it lives beside the executable in `data/`.
+working directory. In a packaged build, it lives beside the executable in `data/` (inside
+`MetaFix.app/Contents/MacOS/` on macOS).
 The directory is created automatically when settings are saved and is ignored by Git.
 Loaded files and the last batch remain in memory.
 
-Ignored `Meta/`, `venv/`, and `MetaFix.bat` are maintained separately and were left
-unchanged during restructuring.
+Ignored `Meta/` holds local handover notes and legacy files. `venv/` and
+`MetaFix.bat` are local environment/launcher files. Generated build output and
+Python caches are ignored too.
 
 ---
 
@@ -249,3 +267,17 @@ Install with:
 pip install -r requirements.txt
 ```
 
+
+## Development checks
+
+```bash
+node --test tests/release-version.test.cjs
+python -m unittest discover -s tests -p "test_*.py"
+python scripts/check_app.py
+```
+
+The build-path tests mock native packaging commands; the smoke checks exercise
+imports and Flask routes without opening a window or modifying media. Native
+builds run in GitHub Actions. Batch progress is currently an activity indicator,
+not a measured per-file completion percentage. Recursive scanning works through
+**add folder**; native folder drag-and-drop scans only the immediate directory.
