@@ -25,9 +25,11 @@ def main():
     (root / 'metafix' / '_version.txt').write_text(args.version + '\n', encoding='utf-8')
     command = [sys.executable, '-m', 'PyInstaller', '--noconfirm', '--clean',
                '--onedir', '--windowed', '--name', 'MetaFix', '--specpath', 'build',
-               '--add-data', 'metafix/templates:metafix/templates',
-               '--add-data', 'metafix/static:metafix/static',
-               '--add-data', 'metafix/_version.txt:metafix',
+               # Data sources are resolved relative to the generated spec in
+               # build/, so they must be absolute rather than project-relative.
+               '--add-data', f'{root / "metafix/templates"}:metafix/templates',
+               '--add-data', f'{root / "metafix/static"}:metafix/static',
+               '--add-data', f'{root / "metafix/_version.txt"}:metafix',
                '--hidden-import', 'webview.platforms.qt',
                '--collect-data', 'webview', '--collect-submodules', 'webview.dom']
     if system == 'Darwin':
