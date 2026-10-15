@@ -7,14 +7,14 @@ from .config import state, save_config
 from .fields import MEDIA_EXTS, ALL_DEST_FIELDS, COPY_SOURCE_FIELDS
 from .metadata import read_metadata_batch
 from .files import _add_paths, _file_list
-from . import operations
+from . import operations, __version__
 
 routes = Blueprint("metafix", __name__)
 
 
 @routes.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", app_version=__version__)
 
 
 @routes.route("/api/config", methods=["GET"])

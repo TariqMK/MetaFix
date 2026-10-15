@@ -59,6 +59,19 @@
     align-items: center;
     gap: 12px;
   }
+  .brand {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    flex-shrink: 0;
+  }
+  .app-version {
+    font-family: var(--mono);
+    font-size: 10px;
+    line-height: 1.2;
+    color: var(--text2);
+    white-space: nowrap;
+  }
   .logo {
     font-family: var(--mono);
     font-weight: 600;
