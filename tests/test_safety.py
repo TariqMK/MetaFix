@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 from metafix import create_app
-from metafix import backups, dates, desktop, exiftool, ffmpeg, operations
+from metafix import backups, dates, desktop, exiftool, ffmpeg, operations, processes
 from metafix.config import state
 from metafix.files import collect_paths, _add_paths
 from metafix.session import session_lock
@@ -20,6 +20,8 @@ class SafetyTests(unittest.TestCase):
         self.saved = deepcopy(state)
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name).resolve()
+        self.records_patch = patch.object(backups, 'RECORDS_DIR', self.root / 'app-data' / 'backup-records')
+        self.records_patch.start()
         self.file = self.root / 'photo.jpg'
         self.file.write_bytes(b'original')
         state.update(files=[str(self.file)], last_batch=[], config={'ffmpeg_path': 'ffmpeg'})
@@ -29,6 +31,7 @@ class SafetyTests(unittest.TestCase):
     def tearDown(self):
         state.clear()
         state.update(self.saved)
+        self.records_patch.stop()
         self.tmp.cleanup()
 
     def write(self, args):
@@ -39,6 +42,27 @@ class SafetyTests(unittest.TestCase):
     def apply(self, **options):
         with patch.object(operations, 'run_exiftool_write', side_effect=self.write):
             return operations.apply_changes(self.request | options)
+
+    def test_backups_are_flat_and_keep_original_filenames(self):
+        self.apply()
+        self.apply()
+        folder = self.root / 'BACKUPS'
+        self.assertEqual(sorted(p.name for p in folder.iterdir()), ['photo(1).jpg', 'photo.jpg'])
+        self.assertTrue(all(p.is_file() for p in folder.iterdir()))
+        self.assertEqual((folder / 'photo.jpg').read_bytes(), b'original')
+        self.assertEqual((folder / 'photo(1).jpg').read_bytes(), b'original-edited')
+        self.assertEqual(len(list(backups.RECORDS_DIR.glob('*.json'))), 2)
+
+    def test_existing_flat_backup_is_not_overwritten_or_adopted(self):
+        folder = self.root / 'BACKUPS'
+        folder.mkdir()
+        (folder / 'photo.jpg').write_bytes(b'older backup')
+        self.apply()
+        self.assertEqual((folder / 'photo.jpg').read_bytes(), b'older backup')
+        plan = operations.cleanup_backups()
+        self.assertEqual(plan['backups'], [str(folder / 'photo(1).jpg')])
+        operations.cleanup_backups({'confirm_paths': plan['backups']})
+        self.assertEqual((folder / 'photo.jpg').read_bytes(), b'older backup')
 
     def test_repeated_apply_undo_uses_latest_backup(self):
         self.apply()
@@ -206,6 +230,41 @@ class SafetyTests(unittest.TestCase):
         # target date's local offset, rather than preserving a fixed UTC offset.
         self.assertEqual(dates.compute_shifted_dt('2024:03:30 12:00:00', days=1), '2024:03:31 12:00:00')
         self.assertEqual(dates.compute_shifted_dt('2024:10:26 12:00:00', days=1), '2024:10:27 12:00:00')
+
+    def test_windows_tools_use_no_window_and_hidden_startup_flags(self):
+        startup = SimpleNamespace(dwFlags=0, wShowWindow=99)
+        with patch.object(processes.os, 'name', 'nt'), \
+             patch.object(processes.subprocess, 'CREATE_NO_WINDOW', 0x08000000, create=True), \
+             patch.object(processes.subprocess, 'STARTUPINFO', return_value=startup, create=True), \
+             patch.object(processes.subprocess, 'STARTF_USESHOWWINDOW', 1, create=True), \
+             patch.object(processes.subprocess, 'SW_HIDE', 0, create=True), \
+             patch.object(processes.subprocess, 'run') as run:
+            processes.run_hidden(['tool'], creationflags=8, capture_output=True)
+            options = run.call_args.kwargs
+            self.assertEqual(options['creationflags'], 0x08000008)
+            self.assertEqual(options['startupinfo'].dwFlags & 1, 1)
+            self.assertEqual(options['startupinfo'].wShowWindow, 0)
+
+    def test_non_windows_processes_receive_no_windows_only_flags(self):
+        with patch.object(processes.os, 'name', 'posix'), patch.object(processes.subprocess, 'run') as run:
+            processes.run_hidden(['tool'], capture_output=True)
+            self.assertNotIn('creationflags', run.call_args.kwargs)
+            self.assertNotIn('startupinfo', run.call_args.kwargs)
+
+    def test_legacy_tracked_backups_remain_cleanable(self):
+        folder = self.root / 'BACKUPS' / '.metafix' / 'older'
+        folder.mkdir(parents=True)
+        backup = folder / self.file.name
+        backup.write_bytes(b'legacy original')
+        record = {'owner': backups.LEGACY_OWNER, 'original': str(self.file),
+                  'current': str(self.file), 'backup': str(backup),
+                  'before_hash': backups.fingerprint(backup)}
+        backups.save_record(record)
+        plan = operations.cleanup_backups()
+        self.assertEqual(plan['backups'], [str(backup)])
+        self.assertEqual(operations.cleanup_backups({'confirm_paths': plan['backups']})['count'], 1)
+        self.assertFalse((self.root / 'BACKUPS').exists())
+        self.assertEqual(self.file.read_bytes(), b'original')
 
     def test_powershell_filename_is_data_not_code(self):
         name = str(self.root / '$(Write-Output danger)$name.jpg')

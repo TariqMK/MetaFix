@@ -1,6 +1,7 @@
 """AVI metadata reading and lossless remuxing."""
 import json
 import subprocess
+from .processes import run_hidden
 from pathlib import Path
 from .config import state
 import os
@@ -26,7 +27,7 @@ def ffmpeg_read_creation_time(filepath):
     cmd = [str(ffprobe), "-v", "quiet", "-print_format", "json",
            "-show_format", str(filepath)]
     try:
-        r = subprocess.run(cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=120)
+        r = run_hidden(cmd, capture_output=True, encoding="utf-8", errors="replace", timeout=120)
         data = json.loads(r.stdout)
         tags = data.get("format", {}).get("tags", {})
         raw = tags.get("creation_time", "") or tags.get("date", "")
@@ -52,7 +53,7 @@ def ffmpeg_write_creation_time(filepath, dt_str):
         handle, name = tempfile.mkstemp(prefix='.metafix-', suffix=path.suffix, dir=path.parent)
         os.close(handle)
         temp = Path(name)
-        result = subprocess.run(
+        result = run_hidden(
             [ffmpeg_path(), '-y', '-i', str(path), '-map', '0', '-c', 'copy',
              '-metadata', f'creation_time={dt_iso}', '-metadata', f'date={dt_iso}', str(temp)],
             capture_output=True, encoding='utf-8', errors='replace', timeout=600,

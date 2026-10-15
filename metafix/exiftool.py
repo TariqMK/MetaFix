@@ -1,5 +1,6 @@
 """ExifTool execution, including Unicode-safe Windows arguments."""
 import subprocess
+from .processes import run_hidden
 import logging
 from pathlib import Path
 import re
@@ -23,7 +24,7 @@ def run_exiftool(args):
         f.write('\n'.join(args))
         argfile = f.name
     try:
-        result = subprocess.run(
+        result = run_hidden(
             [et, '-api', 'QuickTimeUTC=1', '-charset', 'filename=UTF8', '-@', argfile],
             capture_output=True, encoding='utf-8', errors='replace', timeout=120
         )
@@ -44,7 +45,7 @@ def run_exiftool_write(args):
         f.write('\n'.join(args))
         argfile = f.name
     try:
-        result = subprocess.run(
+        result = run_hidden(
             [et, '-api', 'QuickTimeUTC=1', '-charset', 'filename=UTF8', '-m', '-@', argfile],
             capture_output=True, encoding='utf-8', errors='replace', timeout=120
         )

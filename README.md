@@ -17,12 +17,13 @@ Built for the common situation where photos come off a phone, cloud service, or 
 - **Drag and drop** — drop files or folders directly onto the window
 - **Recursive folder scan** — optional, toggled per session
 - **Rename to timestamp** — renames files to `YYYY-MM-DD_HH-MM-SS_originalname.ext` after writing metadata, with `(1)`, `(2)` duplicate protection
-- **BACKUPS folder** — verified originals are copied before writes into individually tracked folders under `BACKUPS/.metafix/`
+- **BACKUPS folder** — verified originals are copied before writes directly into a flat `BACKUPS/` folder, retaining their filenames; repeat backups use `(1)`, `(2)`, etc.
 - **Undo** - restores the exact backups from the last modified batch, including original filenames; failed restores remain retryable
-- **Clean backups** - previews and confirms deletion of owned backups only; unrelated and legacy backups remain untouched
+- **Clean backups** - previews and confirms deletion of owned backups only; unrelated and untracked legacy backups remain untouched
 - **Build version** - shown beneath the MetaFix name in muted text; source runs show `v0.0.0+dev`
 - **ExifTool path memory** — set once, remembered in `data/config.json` forever
-- **Non-destructive** — only metadata headers are modified; pixel data, video codec, and quality are never touched
+- **No re-encoding** - ExifTool edits metadata; AVI uses FFmpeg stream copy, with verified originals retained for recovery
+- **Silent background tools** - metadata reads and writes do not open Windows terminal windows
 
 ---
 
@@ -196,15 +197,22 @@ non-AVI files. The PowerShell option also sets LastWriteTime independently.
 ## File safety
 
 ExifTool updates metadata; AVI files are remuxed with FFmpeg stream copy,
-without re-encoding. Original files are retained in `BACKUPS/`.
+without re-encoding. Metadata edits change file bytes, and AVI remuxing can change
+container structure. No tool can promise zero corruption for every input, and
+MetaFix does not currently compare decoded images or encoded media streams after
+editing. Original files are retained in `BACKUPS/`.
 
-Backup records under `BACKUPS/.metafix/` identify the original, resulting filename,
-and exact backup. Content hashes protect against restoring a changed backup or
+The flat `BACKUPS/` folder contains only backup media files. Tracking records
+under the app's `data/backup-records/` identify the original, resulting filename,
+and exact backup. Keep `data/backup-records/` if you want tracked cleanup to
+remain available after restarting. The backup media can be restored manually
+without these records. Content hashes protect against restoring a changed backup or
 overwriting a file edited after apply. Keep backups until you have checked the
 results. Cleanup never recursively deletes the shared `BACKUPS/` folder.
 
-Old backups made before ownership tracking are not adopted or deleted
-automatically. Inspect those originals manually before removing them.
+Existing nested backups from older versions remain usable for tracked cleanup;
+they are not moved automatically. Old backups made before ownership tracking
+are not adopted or deleted automatically. Inspect those originals manually before removing them.
 
 ---
 
@@ -224,7 +232,9 @@ MetaFix/
 |   |-- exiftool.py             ExifTool adapter
 |   |-- ffmpeg.py               AVI adapter
 |   |-- operations.py           Preview, apply, undo, cleanup
-|   |-- backups.py              Backup placement
+|   |-- backups.py              Flat backup creation and recovery
+|   |-- processes.py            Silent background tools
+|   |-- session.py              Operation serialization
 |   |-- files.py                File collection and renaming
 |   |-- templates/index.html    Interface markup
 |   `-- static/
@@ -232,10 +242,12 @@ MetaFix/
 |       `-- js/app.js           Interface logic
 |-- .github/workflows/release.yml
 |-- scripts/                    Build, versioning, smoke checks
-|-- tests/                      Version and build-path checks
+|-- tests/                      Safety, UI, release, version, build checks
 |-- packaging/requirements.txt  Release build dependencies
 |-- docs/assets/banner.svg      README banner
-|-- data/config.json            Generated local settings (ignored)
+|-- data/                       Generated app data (ignored)
+|   |-- config.json             Saved executable paths
+|   `-- backup-records/         Ownership and integrity records
 |-- requirements.txt            Source runtime dependencies
 `-- README.md
 ```
@@ -292,13 +304,18 @@ python -m unittest discover -s tests -p "test_*.py"
 python scripts/check_app.py
 ```
 
+Current regression suite: **34 Python tests and 20 Node tests (54 total)**.
 The Python safety tests use temporary dummy files and mocked external tools.
 Local real-tool checks also passed for generated JPEG, MP4, and AVI samples: write,
-read-back, copy preview, rename, and byte-exact undo.
+read-back, copy preview, rename, and byte-exact undo. Additional real JPEG/AVI
+checks passed with flat backups, hidden subprocesses, and Windows timestamp updates.
 JavaScript tests cover version allocation, release retries, and UI state/error
 recovery. The build-path tests mock native packaging commands; source smoke
 checks exercise imports and Flask routes without opening a window or modifying
-media. GitHub Actions additionally runs the packaged executable's smoke mode. Batch progress is currently an activity indicator,
+media. GitHub Actions additionally runs the packaged executable's smoke mode.
+These latest packaged checks still need a fresh native workflow run.
+
+Batch progress is currently an activity indicator,
 not a measured per-file completion percentage. Recursive scanning works through
 **add folder**; native folder drag-and-drop scans only the immediate directory.
 
@@ -311,3 +328,7 @@ datetime picker starts at the current local time, not UTC.
 
 The desktop server binds an available loopback port before the window opens,
 so separate app instances do not share a fixed port or file selection.
+
+Background ExifTool, FFmpeg, ffprobe, and PowerShell processes run without
+opening terminal windows on Windows. Output and errors are still captured for
+the app's status messages.

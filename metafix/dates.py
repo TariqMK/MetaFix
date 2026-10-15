@@ -2,6 +2,7 @@
 from datetime import datetime
 import os
 import subprocess
+from .processes import run_hidden
 from dateutil.relativedelta import relativedelta
 
 
@@ -59,7 +60,7 @@ def set_win_creation_time(filepath, dt_str):
     env['METAFIX_FILE'] = str(filepath)
     env['METAFIX_DATE'] = local_datetime(dt_str).strftime('%Y-%m-%d %H:%M:%S')
     try:
-        result = subprocess.run(
+        result = run_hidden(
             ['powershell', '-NoProfile', '-NonInteractive', '-Command', script],
             env=env, capture_output=True, encoding='utf-8', errors='replace', timeout=30,
         )
