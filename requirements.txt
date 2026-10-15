@@ -1,3 +1,0 @@
-flask
-pywebview[qt]
-python-dateutil
