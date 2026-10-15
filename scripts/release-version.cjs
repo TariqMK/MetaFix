@@ -1,5 +1,4 @@
 // Release tags, including draft release tag names, are the version history.
-const fs = require('node:fs');
 
 function nextVersion(names, bump) {
   if (!['major', 'minor', 'patch'].includes(bump)) throw new Error('Invalid version bump');
@@ -25,7 +24,8 @@ async function prepare({ github, context, core }) {
   // Authenticated releases endpoint includes drafts; /releases/latest does not.
   const releases = await github.paginate(github.rest.repos.listReleases, { ...repo, per_page: 100 });
   const tags = await github.paginate(github.rest.repos.listTags, { ...repo, per_page: 100 });
-  const version = nextVersion([...releases.map(r => r.tag_name), ...tags.map(t => t.name)], process.env.VERSION_BUMP);
+  const existing = releases.find(r => (r.body || '').includes(`<!-- metafix-release-run:${context.runId} -->`));
+  const version = existing ? existing.tag_name.replace(/^v/, '') : nextVersion([...releases.map(r => r.tag_name), ...tags.map(t => t.name)], process.env.VERSION_BUMP);
   core.setOutput('version', version);
   core.setOutput('tag', `v${version}`);
   await core.summary.addHeading('Release plan')

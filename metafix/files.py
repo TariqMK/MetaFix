@@ -1,40 +1,66 @@
-"""Loaded-file collection and timestamp-based renaming."""
+"""Validated media collection and timestamp renaming."""
+import os
 from pathlib import Path
 from .config import state
-from .dates import _strip_tz
-from .exiftool import run_exiftool
+from .fields import MEDIA_EXTS
+from .dates import format_datetime
+
+
+def is_backup_path(path):
+    return any(part.casefold() == 'backups' for part in Path(path).parts)
+
+
+def collect_paths(paths, recursive=False):
+    found = []
+    for value in paths:
+        if not isinstance(value, (str, Path)) or any(c in str(value) for c in ('\n', '\r')):
+            raise ValueError('Invalid media path')
+        path = Path(value).expanduser().resolve()
+        if is_backup_path(path):
+            continue
+        if path.is_file() and path.suffix.lower() in MEDIA_EXTS:
+            found.append(str(path))
+        elif path.is_dir():
+            for directory, folders, filenames in os.walk(path, followlinks=False):
+                folders[:] = [name for name in folders if name.casefold() != 'backups'
+                              and not (Path(directory) / name).is_symlink()]
+                for name in filenames:
+                    file = Path(directory) / name
+                    if file.suffix.lower() in MEDIA_EXTS and not file.is_symlink():
+                        found.append(str(file.resolve()))
+                if not recursive:
+                    break
+    return found
+
 
 def _add_paths(new_files):
-    existing = set(state["files"])
-    for f in new_files:
-        if f not in existing:
-            state["files"].append(f)
-            existing.add(f)
+    existing = {os.path.normcase(str(Path(f).resolve())) for f in state['files']}
+    for file in collect_paths(new_files):
+        key = os.path.normcase(file)
+        if key not in existing:
+            state['files'].append(file)
+            existing.add(key)
 
 
 def _file_list():
-    return [{"path": f, "name": Path(f).name} for f in state["files"]]
+    return [{'path': f, 'name': Path(f).name} for f in state['files']]
 
 
-def _rename_file(filepath):
+def _rename_file(filepath, datetime_value):
+    stamp = format_datetime(datetime_value, include_offset=False).replace(':', '-', 2)
+    stamp = stamp.replace(' ', '_').replace(':', '-')
+    path = Path(filepath)
+    target = path.with_name(f'{stamp}_{path.name}')
+    counter = 1
+    while target.exists():
+        target = path.with_name(f'{stamp}_{path.stem}({counter}){path.suffix}')
+        counter += 1
+    # Exclusive hard-link creation avoids overwriting a file that appears after
+    # the existence check. Both paths are on the same filesystem/directory.
+    os.link(path, target)
     try:
-        r = run_exiftool(["-s3", "-DateTimeOriginal", filepath])
-        value = r.stdout.strip()
-        if not value:
-            r = run_exiftool(["-s3", "-CreateDate", filepath])
-            value = r.stdout.strip()
-        if not value:
-            return None
-        value = _strip_tz(value)
-        stamp = value[:10].replace(":", "-") + "_" + value[11:19].replace(":", "-")
-        p = Path(filepath)
-        new = p.parent / f"{stamp}_{p.name}"
-        counter = 1
-        while new.exists():
-            new = p.parent / f"{stamp}_{p.stem}({counter}){p.suffix}"
-            counter += 1
-        p.rename(new)
-        return str(new)
-    except:
-        return None
-
+        path.unlink()
+    except Exception:
+        target.unlink()
+        raise
+    return str(target)

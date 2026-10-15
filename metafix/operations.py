@@ -1,292 +1,199 @@
-"""Preview, apply, undo, and cleanup workflows, independent of HTTP."""
-import json
+"""Validated, serialized media batches with exact backup records."""
 from pathlib import Path
 from .config import state
-from .fields import ALL_DEST_FIELDS, AVI_EXTS
-from .dates import _strip_tz, compute_shifted_dt, set_win_creation_time
-from .metadata import normalise_path, read_metadata_batch
-from .exiftool import run_exiftool, run_exiftool_write, exiftool_error
-from .ffmpeg import ffmpeg_available, ffmpeg_read_creation_time, ffmpeg_write_creation_time
-from .backups import _backup_dir, _move_to_backup
-from .files import _file_list, _rename_file
+from .fields import ALL_DEST_FIELDS, AVI_EXTS, COPY_SOURCE_FIELDS
+from .dates import format_datetime, compute_shifted_dt, set_win_creation_time
+from .metadata import read_metadata_batch, read_source_datetime
+from .exiftool import run_exiftool_write, exiftool_error
+from .ffmpeg import ffmpeg_available, ffmpeg_write_creation_time
+from .backups import create_backup, fingerprint, save_record, restore_record, owned_records, delete_record
+from .files import _file_list, _rename_file, is_backup_path
+from .session import exclusive
 
 
+def _validate(data):
+    if not isinstance(data, dict):
+        raise ValueError('Request must be a JSON object')
+    mode = data.get('mode', 'manual')
+    if mode not in ('manual', 'copy', 'shift'):
+        raise ValueError('Unknown edit mode')
+    selected = data.get('selected_paths', [])
+    if not isinstance(selected, list) or any(not isinstance(p, str) for p in selected):
+        raise ValueError('Selected paths must be a list of strings')
+    loaded = tuple(state['files'])
+    if any(p not in loaded for p in selected):
+        raise ValueError('Selection contains files that are no longer loaded')
+    files = tuple(f for f in loaded if not selected or f in set(selected))
+    if not files:
+        raise ValueError('No files loaded')
+    for file in files:
+        if any(c in file for c in ('\n', '\r')) or is_backup_path(file) or not Path(file).is_file() or Path(file).is_symlink():
+            raise ValueError(f'Unsafe or missing media path: {file}')
+    dest = data.get('dest_fields', ALL_DEST_FIELDS)
+    if (not isinstance(dest, list) or not dest
+            or any(not isinstance(f, str) or f not in ALL_DEST_FIELDS for f in dest)):
+        raise ValueError('Select valid destination fields')
+    for option in ('touch_fs', 'win_creation', 'rename'):
+        if option in data and not isinstance(data[option], bool):
+            raise ValueError(f'{option} must be true or false')
+    source = data.get('source_field', 'DateTimeOriginal')
+    if not isinstance(source, str) or source not in COPY_SOURCE_FIELDS:
+        raise ValueError('Invalid copy source field')
+    offsets = {}
+    for key in ('years', 'months', 'days', 'hours', 'minutes'):
+        value = data.get(key, 0)
+        if isinstance(value, bool) or not isinstance(value, int) or abs(value) > 100000:
+            raise ValueError(f'{key} must be an integer between -100000 and 100000')
+        offsets[key] = value
+    manual = format_datetime(data.get('datetime', ''), include_offset=False) if mode == 'manual' else None
+    if any(Path(f).suffix.lower() in AVI_EXTS for f in files) and not ffmpeg_available():
+        raise ValueError('AVI editing requires FFmpeg')
+    return files, mode, dest, source, offsets, manual
+
+
+def _plan(data):
+    files, mode, dest, source, offsets, manual = _validate(data)
+    current = read_metadata_batch(files) if mode == 'shift' else {}
+    plan, errors = {}, {}
+    for file in files:
+        try:
+            if mode == 'manual':
+                value = manual
+            elif mode == 'copy':
+                value = format_datetime(read_source_datetime(file, source), include_offset=False)
+            else:
+                value = compute_shifted_dt(current.get(file, {}).get('value', ''), **offsets)
+                if value is None:
+                    raise ValueError('No valid date available to shift')
+            plan[file] = value
+        except (ValueError, OSError, RuntimeError) as exc:
+            errors[file] = str(exc)
+    if errors:
+        return None, {'error': 'Batch validation failed; no files changed', 'file_errors': errors}
+    return (files, dest, plan), None
+
+
+@exclusive
 def preview(data):
-    mode = data.get("mode", "manual")
-    selected = data.get("selected_paths", [])
-    all_files = state["files"]
-    # Use selected subset if provided, otherwise all
-    files = [f for f in all_files if f in selected] if selected else all_files
-    if not files:
-        return {}
-
-    previews = {}
-
-    if mode == "manual":
-        dt = data.get("datetime", "")
-        for f in files:
-            previews[f] = dt
-
-    elif mode == "copy":
-        src_field = data.get("source_field", "DateTimeOriginal")
-        args = ["-j", f"-{src_field}"] + files
-        try:
-            r = run_exiftool(args)
-            items = json.loads(r.stdout)
-            norm_to_orig = {normalise_path(f): f for f in files}
-            for item in items:
-                src_raw = item.get("SourceFile", "")
-                orig = (norm_to_orig.get(src_raw)
-                        or norm_to_orig.get(normalise_path(src_raw))
-                        or src_raw)
-                val = _strip_tz(item.get(src_field, ""))
-                previews[orig] = val or "— (field empty)"
-        except Exception as e:
-            print("preview copy error:", e)
-            for f in files:
-                previews[f] = "error"
-
-    elif mode == "shift":
-        years   = int(data.get("years",   0))
-        months  = int(data.get("months",  0))
-        days    = int(data.get("days",    0))
-        hours   = int(data.get("hours",   0))
-        minutes = int(data.get("minutes", 0))
-        current = read_metadata_batch(files)
-        for f in files:
-            entry = current.get(f, {})
-            cur = entry.get("value", "") if isinstance(entry, dict) else entry
-            if cur and cur != "—":
-                shifted = compute_shifted_dt(cur, years, months, days, hours, minutes)
-                previews[f] = shifted or "parse error"
-            else:
-                previews[f] = "no date found"
-
-    return previews
+    try:
+        plan, error = _plan(data)
+        if error:
+            return error, 400
+        return plan[2]
+    except (ValueError, TypeError) as exc:
+        return {'error': str(exc)}, 400
 
 
+@exclusive
 def apply_changes(data):
-    mode         = data.get("mode", "manual")
-    dest_fields  = data.get("dest_fields", ALL_DEST_FIELDS)
-    touch_fs     = data.get("touch_fs", True)
-    win_creation = data.get("win_creation", False)
-    do_rename    = data.get("rename", False)
-    selected     = data.get("selected_paths", [])
-    all_files    = state["files"]
-    files = [f for f in all_files if f in set(selected)] if selected else all_files
-    print(f"APPLY: {len(all_files)} total, {len(selected)} selected, {len(files)} to process")
-
-    if not files:
-        return {"error": "No files loaded"}, 400
-    if not dest_fields:
-        return {"error": "No destination fields selected"}, 400
-
-    errors = []
-    renamed = {}
-    state["last_batch"] = list(files)
-
-    for f in files:
-        is_avi = Path(f).suffix.lower() in AVI_EXTS
-
-        # ── AVI: use FFmpeg ───────────────────────────────────────────────────
-        if is_avi:
-            if not ffmpeg_available():
-                errors.append(f"{Path(f).name}: AVI file requires FFmpeg — click 'set ffmpeg' in the titlebar")
-                continue
-
-            # Determine the datetime to write
-            avi_dt = None
-            if mode == "manual":
-                avi_dt = data.get("datetime", "").strip()
-                print(f"AVI manual dt: {repr(avi_dt)}")
-
-            elif mode == "copy":
-                # AVI has no EXIF fields — read whatever date is available via ffprobe
-                # (the ExifTool source field selector is irrelevant for AVI)
-                avi_dt = ffmpeg_read_creation_time(f)
-                print(f"AVI copy: ffprobe returned {repr(avi_dt)}")
-                if not avi_dt:
-                    # last resort: try ExifTool read-only on the source field
-                    src = data.get("source_field", "DateTimeOriginal")
-                    try:
-                        r = run_exiftool(["-j", f"-{src}", f])
-                        items = json.loads(r.stdout)
-                        if items:
-                            avi_dt = _strip_tz(items[0].get(src, ""))
-                            print(f"AVI copy: exiftool {src} returned {repr(avi_dt)}")
-                    except Exception as e:
-                        print(f"AVI copy exiftool fallback error: {e}")
-                if not avi_dt:
-                    errors.append(f"{Path(f).name}: no date found in AVI file to copy from — use Manual mode to set a specific date")
-                    continue
-
-            elif mode == "shift":
-                years   = int(data.get("years",   0))
-                months  = int(data.get("months",  0))
-                days    = int(data.get("days",    0))
-                hours   = int(data.get("hours",   0))
-                minutes = int(data.get("minutes", 0))
-                # Try ffprobe first for AVIs, then ExifTool batch
-                cur_dt = ffmpeg_read_creation_time(f)
-                print(f"AVI shift: ffprobe returned {repr(cur_dt)}")
-                if not cur_dt:
-                    cur_meta = read_metadata_batch([f])
-                    entry = cur_meta.get(f, {})
-                    cur_dt = entry.get("value", "") if isinstance(entry, dict) else entry
-                    print(f"AVI shift: exiftool batch returned {repr(cur_dt)}")
-                if not cur_dt or cur_dt == "—":
-                    errors.append(f"{Path(f).name}: no date found in AVI to shift — use Manual mode")
-                    continue
-                avi_dt = compute_shifted_dt(cur_dt, years, months, days, hours, minutes)
-                print(f"AVI shift: computed new dt {repr(avi_dt)}")
-                if not avi_dt:
-                    errors.append(f"{Path(f).name}: could not parse AVI date '{cur_dt}'")
-                    continue
-
-            if not avi_dt or not avi_dt.strip():
-                errors.append(f"{Path(f).name}: no datetime to write (got empty value)")
-                continue
-
-            print(f"AVI writing dt={repr(avi_dt)} to {Path(f).name}")
-            ok, err_msg = ffmpeg_write_creation_time(f, avi_dt)
-            if not ok:
-                errors.append(f"{Path(f).name}: {err_msg}")
-            else:
-                if win_creation:
-                    set_win_creation_time(f, avi_dt)
-                if do_rename:
-                    new_path = _rename_file(f)
-                    if new_path:
-                        renamed[f] = new_path
-            continue
-
-        # ── All other formats: use ExifTool ──────────────────────────────────
-        write_args = []
-        written_dt = None
-
-        if mode == "manual":
-            dt = data.get("datetime", "")
-            if not dt:
-                return {"error": "No datetime provided"}, 400
-            written_dt = dt
-            for d in dest_fields:
-                write_args.append(f"-{d}={dt}")
-            if touch_fs:
-                write_args.append(f"-FileModifyDate={dt}")
-
-        elif mode == "copy":
-            src = data.get("source_field", "DateTimeOriginal")
-            write_args += ["-tagsFromFile", "@"]
-            for d in dest_fields:
-                if d != src:
-                    write_args.append(f"-{d}<{src}")
-            if touch_fs:
-                write_args.append(f"-FileModifyDate<{src}")
-            if win_creation:
-                try:
-                    r2 = run_exiftool(["-j", f"-{src}", f])
-                    items2 = json.loads(r2.stdout)
-                    if items2:
-                        written_dt = _strip_tz(items2[0].get(src, ""))
-                except Exception:
-                    pass
-
-        elif mode == "shift":
-            years   = int(data.get("years",   0))
-            months  = int(data.get("months",  0))
-            days    = int(data.get("days",    0))
-            hours   = int(data.get("hours",   0))
-            minutes = int(data.get("minutes", 0))
-            cur_meta = read_metadata_batch([f])
-            entry = cur_meta.get(f, {})
-            cur_dt = entry.get("value", "") if isinstance(entry, dict) else entry
-            if not cur_dt or cur_dt == "—":
-                errors.append(f"{Path(f).name}: no date found to shift")
-                continue
-            new_dt = compute_shifted_dt(cur_dt, years, months, days, hours, minutes)
-            if not new_dt:
-                errors.append(f"{Path(f).name}: could not parse date '{cur_dt}'")
-                continue
-            written_dt = new_dt
-            for d in dest_fields:
-                write_args.append(f"-{d}={new_dt}")
-            if touch_fs:
-                write_args.append(f"-FileModifyDate={new_dt}")
-
-        write_args.append(f)
-
-        print("WRITE ARGS:", write_args)
+    try:
+        planned, error = _plan(data)
+        if error:
+            return error, 400
+    except (ValueError, TypeError) as exc:
+        return {'error': str(exc)}, 400
+    files, dest_fields, plan = planned
+    results, renamed, records = {}, {}, []
+    for file in files:
+        record = None
+        written = False
         try:
-            r = run_exiftool_write(write_args)
-            print("STDOUT:", r.stdout.strip())
-            print("STDERR:", r.stderr.strip())
-            err_text = exiftool_error(r)
-            if r.returncode != 0 or (err_text and "error" in err_text.lower()):
-                msg = err_text or f"exit code {r.returncode}"
-                errors.append(f"{Path(f).name}: {msg}")
+            record = create_backup(file)
+            value = plan[file]
+            if Path(file).suffix.lower() in AVI_EXTS:
+                ok, message = ffmpeg_write_creation_time(file, value)
+                if not ok:
+                    raise RuntimeError(message)
             else:
-                _move_to_backup(f)
-                if win_creation and written_dt:
-                    set_win_creation_time(f, written_dt)
-        except Exception as e:
-            errors.append(f"{Path(f).name}: {str(e)}")
+                # A verified backup exists before every write, including filesystem-only edits.
+                args = ['-overwrite_original'] + [f'-{field}={value}' for field in dest_fields]
+                if data.get('touch_fs', True):
+                    args.append(f'-FileModifyDate={value}')
+                result = run_exiftool_write(args + [file])
+                message = exiftool_error(result)
+                if result.returncode or (message and 'error' in message.lower()):
+                    raise RuntimeError(message or f'ExifTool exit {result.returncode}')
+            written = True
+            # Capture modification before optional stages so failed post-processing is undoable.
+            record['after_hash'] = fingerprint(file)
+            save_record(record)
+            records.append(record)
+            problems = []
+            if data.get('win_creation', False):
+                try:
+                    set_win_creation_time(file, value)
+                except Exception as exc:
+                    problems.append(str(exc))
+            if data.get('rename', False):
+                try:
+                    new_path = _rename_file(file, value)
+                    record['current'] = new_path
+                    renamed[file] = new_path
+                    save_record(record)
+                except Exception as exc:
+                    problems.append(f'Rename failed: {exc}')
+            results[file] = {'ok': not problems, 'current': record['current'], 'error': '; '.join(problems)}
+        except Exception as exc:
+            # A tool can return an error after a partial write. Preserve a recovery
+            # record in that case; unchanged failures do not replace the undo batch.
+            if record and not written and Path(file).exists():
+                try:
+                    record['after_hash'] = fingerprint(file)
+                    if record['after_hash'] != record['before_hash']:
+                        save_record(record)
+                        records.append(record)
+                except OSError:
+                    pass
+            elif record and written and record not in records:
+                records.append(record)
+            results[file] = {'ok': False, 'current': file, 'error': str(exc)}
+    if records:
+        state['last_batch'] = records
+    state['files'] = [renamed.get(f, f) for f in state['files']]
+    return {'ok': all(r['ok'] for r in results.values()), 'results': results,
+            'errors': [f"{p}: {r['error']}" for p, r in results.items() if not r['ok']],
+            'renamed': renamed, 'files': _file_list(), 'can_undo': bool(state['last_batch'])}
 
-        if do_rename:
-            new_path = _rename_file(f)
-            if new_path:
-                renamed[f] = new_path
 
-    if renamed:
-        state["files"] = [renamed.get(f, f) for f in state["files"]]
-
-    return {
-        "ok": True,
-        "errors": errors,
-        "renamed": renamed,
-        "files": _file_list()
-    }
-
-
+@exclusive
 def undo():
-    """Restore files from their BACKUPS folder copies."""
-    if not state["last_batch"]:
-        return {"error": "Nothing to undo"}, 400
-    errors = []
-    for f in state["last_batch"]:
-        backup_dir = _backup_dir(f)
-        backup_copy = backup_dir / Path(f).name
-        if backup_copy.exists():
-            try:
-                import shutil
-                shutil.copy2(str(backup_copy), f)
-            except Exception as e:
-                errors.append(f"{Path(f).name}: {e}")
-        else:
-            errors.append(f"{Path(f).name}: no backup found in BACKUPS folder")
-    state["last_batch"] = []
-    return {"ok": True, "errors": errors}
+    if not state['last_batch']:
+        return {'error': 'Nothing to undo'}, 400
+    pending, errors, renamed = [], {}, {}
+    for record in tuple(state['last_batch']):
+        try:
+            restore_record(record)
+            renamed[record['current']] = record['original']
+        except Exception as exc:
+            pending.append(record)
+            errors[record['current']] = str(exc)
+    state['last_batch'] = pending
+    state['files'] = [renamed.get(f, f) for f in state['files']]
+    return {'ok': not errors, 'file_errors': errors, 'errors': list(errors.values()),
+            'renamed': renamed, 'files': _file_list(), 'can_undo': bool(pending)}
 
 
-def cleanup_backups():
-    """Delete BACKUPS folders for all directories containing loaded files."""
-    import shutil
-    deleted_dirs = []
-    errors = []
-    # Collect unique parent directories
-    dirs = set(Path(f).parent for f in (state["files"] + state["last_batch"]))
-    for d in dirs:
-        backup_dir = d / "BACKUPS"
-        if backup_dir.exists() and backup_dir.is_dir():
-            try:
-                shutil.rmtree(str(backup_dir))
-                deleted_dirs.append(str(backup_dir))
-            except Exception as e:
-                errors.append(f"{backup_dir}: {e}")
-    state["last_batch"] = []
-    return {
-        "ok": True,
-        "deleted_dirs": deleted_dirs,
-        "count": len(deleted_dirs),
-        "errors": errors
-    }
-
+@exclusive
+def cleanup_backups(data=None):
+    data = data or {}
+    if not isinstance(data, dict):
+        return {'error': 'Request must be a JSON object'}, 400
+    parents = [Path(f).parent for f in state['files']]
+    parents += [Path(r['original']).parent for r in state['last_batch']]
+    records = owned_records(parents)
+    paths = sorted(r['backup'] for r in records)
+    # Requiring the displayed list protects against backups created since confirmation.
+    if data.get('confirm_paths') != paths:
+        return {'backups': paths, 'count': len(paths), 'confirmation_required': True}
+    errors, deleted = {}, []
+    for record in records:
+        try:
+            delete_record(record)
+            deleted.append(record['backup'])
+        except Exception as exc:
+            errors[record['backup']] = str(exc)
+            if not Path(record['backup']).exists():
+                deleted.append(record['backup'])
+    state['last_batch'] = [r for r in state['last_batch'] if r['backup'] not in deleted]
+    return {'ok': not errors, 'count': len(deleted), 'errors': list(errors.values()),
+            'can_undo': bool(state['last_batch'])}

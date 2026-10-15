@@ -1,17 +1,18 @@
 """Native desktop window, server lifecycle, and drag-and-drop bridge."""
 import json
 import threading
-from pathlib import Path
 import webview
 from webview.dom import DOMEventHandler
 from . import create_app
-from .fields import MEDIA_EXTS
-from .files import _add_paths, _file_list
+from werkzeug.serving import make_server
 
 _window = None
 
 def on_drop(e):
     try:
+        if _window.evaluate_js("window.metafixBusy === true"):
+            _window.evaluate_js("window.hideDropOverlay()")
+            return
         print("DROP EVENT keys:", list(e.keys()))
         # Try both key names across pywebview versions
         files = (e.get("dataTransfer") or e.get("domTransfer") or {}).get("files", [])
@@ -28,17 +29,10 @@ def on_drop(e):
         print("DROP paths:", paths)
         if not paths:
             return
-        new_files = []
-        for p in paths:
-            pp = Path(p)
-            if pp.is_file() and pp.suffix.lower() in MEDIA_EXTS:
-                new_files.append(str(pp))
-            elif pp.is_dir():
-                new_files.extend([str(f) for f in pp.glob("*")
-                                   if f.suffix.lower() in MEDIA_EXTS and f.is_file()])
-        _add_paths(new_files)
-        safe = json.dumps(_file_list())
-        _window.evaluate_js(f"window.receiveDropResult({safe})")
+        # Let the guarded UI action submit paths through the serialized API.
+        # Native callbacks never mutate session state independently of the UI.
+        safe = json.dumps(paths)
+        _window.evaluate_js(f"window.receiveNativeDrop({safe})")
     except Exception as ex:
         print("DROP ERROR:", ex)
         import traceback; traceback.print_exc()
@@ -60,16 +54,23 @@ def bind(window):
 
 
 
-def start_server(app):
-    app.run(port=5050, debug=False, use_reloader=False)
+def start_server(server):
+    server.serve_forever()
 
 
 def main():
     app = create_app()
-    t = threading.Thread(target=start_server, args=(app,), daemon=True)
-    t.start()
-    win = webview.create_window(
-        "MetaFix", "http://127.0.0.1:5050",
-        width=1200, height=820, resizable=True, background_color="#0f0f0f",
-    )
-    webview.start(bind, win, gui="qt")
+    # Bind before opening the window, with a separate port for each instance.
+    server = make_server('127.0.0.1', 0, app, threaded=True)
+    thread = threading.Thread(target=start_server, args=(server,), daemon=True)
+    thread.start()
+    try:
+        win = webview.create_window(
+            'MetaFix', f'http://127.0.0.1:{server.server_port}',
+            width=1200, height=820, resizable=True, background_color='#0f0f0f',
+        )
+        webview.start(bind, win, gui='qt')
+    finally:
+        server.shutdown()
+        server.server_close()
+        thread.join(timeout=5)

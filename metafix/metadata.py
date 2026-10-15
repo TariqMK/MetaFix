@@ -2,7 +2,7 @@
 import json
 from pathlib import Path
 from .fields import AVI_EXTS
-from .dates import _strip_tz
+from .dates import _strip_tz, format_datetime
 from .exiftool import run_exiftool
 from .ffmpeg import ffmpeg_available, ffmpeg_read_creation_time
 
@@ -32,6 +32,8 @@ def read_metadata_batch(files):
         args = ["-j"] + fields + list(other_files)
         try:
             r = run_exiftool(args)
+            if r.returncode:
+                raise RuntimeError(r.stderr.strip() or 'ExifTool metadata read failed')
             raw = r.stdout.strip()
             if raw:
                 data = json.loads(raw)
@@ -43,7 +45,7 @@ def read_metadata_batch(files):
                         "MediaCreateDate", "TrackCreateDate", "TrackModifyDate",
                         "ModifyDate", "FileCreateDate", "FileModifyDate"
                     ):
-                        val = _strip_tz(item.get(key, ""))
+                        val = item.get(key, "")
                         if val and val not in ("0000:00:00 00:00:00", ""):
                             result[orig] = {"value": val, "field": key}
                             break
@@ -55,7 +57,7 @@ def read_metadata_batch(files):
         except Exception as e:
             print("read_metadata_batch error:", e)
             for f in other_files:
-                result[f] = {"value": "—", "field": ""}
+                result[f] = {"value": "—", "field": "", "error": str(e)}
 
     # ── AVI: ffprobe (if available), else ExifTool read ───────────────────────
     for f in avi_files:
@@ -82,3 +84,21 @@ def read_metadata_batch(files):
 
     return result
 
+
+
+def read_source_datetime(filepath, source_field):
+    """One source resolver shared by preview and apply, including AVI fallback."""
+    if Path(filepath).suffix.lower() in AVI_EXTS and ffmpeg_available():
+        value = ffmpeg_read_creation_time(filepath)
+        if value:
+            return format_datetime(value)
+    if source_field == 'creation_time':
+        raise ValueError('No AVI creation_time available')
+    result = run_exiftool(['-j', f'-{source_field}', filepath])
+    if result.returncode:
+        raise ValueError(result.stderr.strip() or 'Metadata read failed')
+    items = json.loads(result.stdout)
+    value = items[0].get(source_field, '') if items else ''
+    if not value:
+        raise ValueError(f'Source field {source_field} is empty')
+    return format_datetime(value)

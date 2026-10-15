@@ -1,5 +1,7 @@
 """ExifTool execution, including Unicode-safe Windows arguments."""
 import subprocess
+import logging
+from pathlib import Path
 import re
 from .config import state
 
@@ -22,20 +24,19 @@ def run_exiftool(args):
         argfile = f.name
     try:
         result = subprocess.run(
-            [et, '-charset', 'filename=UTF8', '-@', argfile],
-            capture_output=True, encoding='utf-8', errors='replace'
+            [et, '-api', 'QuickTimeUTC=1', '-charset', 'filename=UTF8', '-@', argfile],
+            capture_output=True, encoding='utf-8', errors='replace', timeout=120
         )
     finally:
-        try: os.unlink(argfile)
-        except: pass
+        try:
+            Path(argfile).unlink(missing_ok=True)
+        except OSError:
+            logging.exception('Unable to remove ExifTool argument file')
     return result
 
 
 def run_exiftool_write(args):
-    """All ExifTool write calls. Same argfile approach plus -m (ignore minor errors).
-    ExifTool's default behaviour treats input dates as local time, which is correct
-    for both JPEG (EXIF local time) and MP4/MOV (QuickTime UTC — ExifTool converts
-    local→UTC automatically when writing QuickTime containers)."""
+    """Write with explicit local-to-UTC conversion for QuickTime integer dates."""
     import tempfile
     et = exiftool_path()
     with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8',
@@ -44,12 +45,14 @@ def run_exiftool_write(args):
         argfile = f.name
     try:
         result = subprocess.run(
-            [et, '-charset', 'filename=UTF8', '-m', '-@', argfile],
-            capture_output=True, encoding='utf-8', errors='replace'
+            [et, '-api', 'QuickTimeUTC=1', '-charset', 'filename=UTF8', '-m', '-@', argfile],
+            capture_output=True, encoding='utf-8', errors='replace', timeout=120
         )
     finally:
-        try: os.unlink(argfile)
-        except: pass
+        try:
+            Path(argfile).unlink(missing_ok=True)
+        except OSError:
+            logging.exception('Unable to remove ExifTool argument file')
     return result
 
 

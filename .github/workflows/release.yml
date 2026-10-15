@@ -41,7 +41,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Test version calculation
-        run: node --test tests/release-version.test.cjs
+        run: node --test tests/*.test.cjs
       - name: Allocate next version
         id: version
         uses: actions/github-script@v8
@@ -107,6 +107,7 @@ jobs:
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v6
       - uses: actions/download-artifact@v7
         with:
           path: release-assets
@@ -118,27 +119,5 @@ jobs:
           RELEASE_VISIBILITY: ${{ inputs.visibility }}
         with:
           script: |
-            const fs = require('node:fs');
-            const path = require('node:path');
-            const repo = context.repo;
-            const tag = process.env.RELEASE_TAG;
-            const files = fs.readdirSync('release-assets');
-            if (files.length !== 3) throw new Error('Expected all three platform archives');
-            // Explicit tag pins both draft and public releases to the built commit.
-            await github.rest.git.createRef({ ...repo, ref: `refs/tags/${tag}`, sha: context.sha });
-            const { data: release } = await github.rest.repos.createRelease({
-              ...repo, tag_name: tag, target_commitish: context.sha,
-              name: `MetaFix ${tag}`, draft: true, prerelease: false,
-              generate_release_notes: true,
-            });
-            for (const name of files) {
-              await github.rest.repos.uploadReleaseAsset({
-                ...repo, release_id: release.id, name,
-                data: fs.readFileSync(path.join('release-assets', name)),
-              });
-            }
-            if (process.env.RELEASE_VISIBILITY === 'public') {
-              await github.rest.repos.updateRelease({ ...repo, release_id: release.id, draft: false });
-            }
-            await core.summary.addHeading(`MetaFix ${tag}`)
-              .addLink('View release', release.html_url).write();
+            const { publish } = require('./scripts/publish-release.cjs');
+            await publish({ github, context, core });

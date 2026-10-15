@@ -38,3 +38,18 @@ test('prepare paginates releases and tags, including an untagged draft', async (
   assert.equal(calls.length, 2);
   assert.equal(calls[0].per_page, 100);
 });
+
+test('rerunning same workflow retains its already allocated release version', async () => {
+  const { prepare } = require('../scripts/release-version.cjs');
+  const outputs = {};
+  const releases = Symbol('releases'), tags = Symbol('tags');
+  const github = { rest:{repos:{listReleases:releases,listTags:tags}},
+    paginate: async method => method === releases ? [
+      {tag_name:'v1.2.3',body:'<!-- metafix-release-run:99 -->'},
+      {tag_name:'v2.0.0',body:'another run'},
+    ] : [] };
+  const summary = {addHeading(){return this;},addTable(){return this;},async write(){}};
+  await prepare({github,context:{repo:{owner:'o',repo:'r'},sha:'built',runId:99},
+    core:{setOutput:(key,value)=>outputs[key]=value,summary}});
+  assert.equal(outputs.tag,'v1.2.3');
+});

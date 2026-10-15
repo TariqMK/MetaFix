@@ -1,5 +1,6 @@
 """MetaFix desktop application."""
-from flask import Flask
+from flask import Flask, jsonify
+from werkzeug.exceptions import HTTPException
 from pathlib import Path
 
 try:
@@ -12,4 +13,14 @@ def create_app():
     app = Flask(__name__)
     from .routes import routes
     app.register_blueprint(routes)
+
+    @app.errorhandler(Exception)
+    def api_error(error):
+        if isinstance(error, ValueError):
+            return jsonify({'error': str(error)}), 400
+        if isinstance(error, HTTPException):
+            return jsonify({'error': error.description}), error.code
+        app.logger.exception('Application request failed')
+        return jsonify({'error': 'Operation failed; check the application log'}), 500
+
     return app

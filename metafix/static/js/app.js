@@ -8,6 +8,7 @@ let selectedPaths = new Set();
 let currentMode = 'manual';
 let destFieldKeys = [];
 let hasLastBatch = false;
+let copySourceChosen = false;
 let activeFieldFilter = '';  // field name to filter table by, or '' for all
 
 // ── INIT ───────────────────────────────────────────────────────────────────────
@@ -18,8 +19,7 @@ async function init() {
     document.getElementById('exifStatus').classList.add('ok');
   }
   if (cfg.ffmpeg_path) {
-    document.getElementById('ffmpegStatus').innerHTML = cfg.ffmpeg_path +
-      ' <span style="color:var(--text3);font-size:10px;">(AVI)</span>';
+    document.getElementById('ffmpegStatus').textContent = cfg.ffmpeg_path + ' (AVI)';
     document.getElementById('ffmpegStatus').classList.add('ok');
   }
 
@@ -42,7 +42,7 @@ async function init() {
   // set default datetime to now
   const now = new Date();
   now.setSeconds(0, 0);
-  document.getElementById('manualDt').value = now.toISOString().slice(0, 19);
+  document.getElementById('manualDt').value = localInputValue(now);
 
   setupDrop();
 }
@@ -51,8 +51,15 @@ async function init() {
 async function api(endpoint, body = null) {
   const opts = { method: body ? 'POST' : 'GET', headers: { 'Content-Type': 'application/json' } };
   if (body) opts.body = JSON.stringify(body);
-  const r = await fetch(endpoint, opts);
-  return r.json();
+  const response = await fetch(endpoint, opts);
+  let result;
+  try { result = await response.json(); }
+  catch { throw new Error(`Server returned an unreadable response (${response.status})`); }
+  if (!response.ok || result.error) {
+    const details = Object.entries(result.file_errors || {}).map(([path, message]) => `${path}: ${message}`).join('; ');
+    throw new Error([result.error || `Request failed (${response.status})`, details].filter(Boolean).join(': '));
+  }
+  return result;
 }
 
 // ── EXIFTOOL / FFMPEG ──────────────────────────────────────────────────────────
@@ -68,8 +75,7 @@ async function browseExiftool() {
 async function browseFfmpeg() {
   const res = await api('/api/browse_ffmpeg', {});
   if (res.ok) {
-    document.getElementById('ffmpegStatus').innerHTML = res.path +
-      ' <span style="color:var(--text3);font-size:10px;">(AVI)</span>';
+    document.getElementById('ffmpegStatus').textContent = res.path + ' (AVI)';
     document.getElementById('ffmpegStatus').classList.add('ok');
     toast('FFmpeg saved', 'good');
   }
@@ -92,6 +98,8 @@ async function addFolder() {
 async function clearFiles() {
   await api('/api/clear_files', {});
   files = []; currentMeta = {}; previewMeta = {}; statusMap = {}; selectedPaths.clear();
+  activeFieldFilter = '';
+  _updateFieldFilterOptions();
   renderTable();
   setStatus('cleared');
 }
@@ -101,11 +109,14 @@ async function removeSelected() {
   await api('/api/remove_files', { paths });
   selectedPaths.clear();
   files = files.filter(f => !paths.includes(f.path));
+  previewMeta = {};
+  _updateFieldFilterOptions();
   paths.forEach(p => { delete currentMeta[p]; delete previewMeta[p]; delete statusMap[p]; });
   renderTable();
 }
 
 async function afterFilesChanged(newFiles) {
+  previewMeta = {};
   files = newFiles;
   files.forEach(f => { if (!statusMap[f.path]) statusMap[f.path] = 'ready'; });
   renderTable();
@@ -117,12 +128,15 @@ async function afterFilesChanged(newFiles) {
 async function loadCurrentMeta() {
   if (!files.length) return;
   setStatus('reading metadata…');
-  files.forEach(f => statusMap[f.path] = 'loading');
+  files.forEach(f => { if (!['ok', 'err'].includes(statusMap[f.path])) statusMap[f.path] = 'loading'; });
   renderTable();
   const res = await api('/api/read_metadata', { files: files.map(f => f.path) });
   // res is now path -> {value, field}
-  currentMeta = { ...currentMeta, ...res };
-  files.forEach(f => statusMap[f.path] = 'ready');
+  currentMeta = res;
+  files.forEach(f => {
+    if (res[f.path]?.error) statusMap[f.path] = 'err';
+    else if (statusMap[f.path] === 'loading') statusMap[f.path] = 'ready';
+  });
   renderTable();
   setStatus(`${files.length} file${files.length !== 1 ? 's' : ''} loaded`);
 
@@ -142,9 +156,10 @@ window.showDropOverlay = function() {
 window.hideDropOverlay = function() {
   document.getElementById('dropOverlay').classList.remove('visible');
 };
-window.receiveDropResult = async function(newFiles) {
+window.receiveNativeDrop = async function(paths) {
   document.getElementById('dropOverlay').classList.remove('visible');
-  await afterFilesChanged(newFiles);
+  const result = await api('/api/drop_files', { paths, recursive: false });
+  await afterFilesChanged(result.files);
 };
 
 function setupDrop() {
@@ -170,12 +185,14 @@ function setMode(mode) {
 // ── PREVIEW ───────────────────────────────────────────────────────────────────
 async function previewChanges() {
   if (!files.length) { toast('no files loaded', 'err'); return; }
+  previewMeta = {};
+  renderTable();
   setStatus('computing preview…');
   const payload = buildPayload();
   payload.selected_paths = [...selectedPaths];
   const scope = selectedPaths.size > 0 ? selectedPaths.size : files.length;
   const res = await api('/api/preview', payload);
-  previewMeta = { ...previewMeta, ...res };
+  previewMeta = res;
   renderTable();
   setStatus(`preview ready for ${scope} file${scope !== 1 ? 's' : ''} — check After column`);
 }
@@ -203,17 +220,13 @@ async function applyChanges() {
 
   if (res.error) { toast(res.error, 'err'); showProgress(false); setStatus('error'); return; }
 
-  // update file list (may have renamed)
+  remapPaths(res.renamed || {});
   files = res.files;
-  // mark statuses
-  files.forEach(f => statusMap[f.path] = 'ok');
-  if (res.errors && res.errors.length) {
-    res.errors.forEach(e => {
-      const name = e.split(':')[0];
-      const f = files.find(ff => ff.name === name);
-      if (f) statusMap[f.path] = 'err';
-    });
+  for (const [path, result] of Object.entries(res.results || {})) {
+    statusMap[result.current || path] = result.ok ? 'ok' : 'err';
   }
+  hasLastBatch = res.can_undo;
+  document.getElementById('undoBtn').disabled = !hasLastBatch;
 
   // refresh metadata
   currentMeta = {};
@@ -223,8 +236,7 @@ async function applyChanges() {
   setProgress(100);
   setTimeout(() => showProgress(false), 800);
 
-  hasLastBatch = true;
-  document.getElementById('undoBtn').disabled = false;
+
 
   const errCount = res.errors ? res.errors.length : 0;
   if (errCount > 0) {
@@ -248,28 +260,26 @@ async function undoLast() {
   } else {
     toast('undone', 'good');
   }
-  hasLastBatch = false;
-  document.getElementById('undoBtn').disabled = true;
-  files.forEach(f => statusMap[f.path] = 'ready');
+  remapPaths(res.renamed || {});
+  files = res.files;
+  hasLastBatch = res.can_undo;
+  document.getElementById('undoBtn').disabled = !hasLastBatch;
+  files.forEach(f => statusMap[f.path] = res.file_errors?.[f.path] ? 'err' : 'ready');
   currentMeta = {}; previewMeta = {};
   await loadCurrentMeta();
+  setStatus(res.errors.length ? res.errors.join('; ') : 'Undo complete');
 }
 
 async function cleanupBackups() {
-  setStatus('cleaning up backups…');
-  const res = await api('/api/cleanup_backups', {});
-  if (res.errors && res.errors.length) {
-    toast(`cleanup: ${res.errors.length} errors`, 'err');
-    setStatus(`deleted ${res.count} folder${res.count !== 1 ? 's' : ''}, ${res.errors.length} errors`);
-  } else if (!res.count) {
-    toast('no BACKUPS folders found', '');
-    setStatus('no BACKUPS folders found');
-  } else {
-    toast(`BACKUPS folder${res.count !== 1 ? 's' : ''} deleted`, 'good');
-    setStatus(`cleaned up ${res.count} BACKUPS folder${res.count !== 1 ? 's' : ''}`);
-  }
-  hasLastBatch = false;
-  document.getElementById('undoBtn').disabled = true;
+  const plan = await api('/api/cleanup_backups', {});
+  if (!plan.count) { setStatus('No tracked MetaFix backups found'); return; }
+  if (!window.confirm(`Delete these ${plan.count} MetaFix backup(s)?\n\n${plan.backups.join('\n')}`)) return;
+  const result = await api('/api/cleanup_backups', { confirm_paths: plan.backups });
+  if (result.confirmation_required) throw new Error('Backup list changed; review cleanup again');
+  hasLastBatch = result.can_undo;
+  document.getElementById('undoBtn').disabled = !hasLastBatch;
+  setStatus(`Deleted ${result.count} backup(s)`);
+  if (result.errors.length) throw new Error(result.errors.join('; '));
 }
 
 // ── BUILD PAYLOAD ─────────────────────────────────────────────────────────────
@@ -301,10 +311,12 @@ function toggleRow(path, cb) {
   if (cb.checked) selectedPaths.add(path);
   else selectedPaths.delete(path);
   document.querySelectorAll(`tr[data-path="${CSS.escape(path)}"]`).forEach(r => r.classList.toggle('selected', cb.checked));
+  invalidatePreview();
   updateSelectionCount();
 }
 
 function toggleSelectAll(masterCb) {
+  previewMeta = {};
   // Only toggles visible (filtered) rows
   document.querySelectorAll('.row-cb').forEach(cb => {
     cb.checked = masterCb.checked;
@@ -335,8 +347,9 @@ function _updateFieldFilterOptions() {
     o.textContent = `${field}  (${count})`;
     sel.appendChild(o);
   });
-  // Restore selection if still valid
+  // Keep UI filter and stored filter synchronized after refresh.
   if (current && [...fields].includes(current)) sel.value = current;
+  activeFieldFilter = sel.value;
   // Show filter row only when files loaded
   document.getElementById('filterRow').classList.toggle('visible', files.length > 0);
 }
@@ -354,6 +367,7 @@ function selectAllFiltered() {
     ? files.filter(f => currentMeta[f.path]?.field === activeFieldFilter)
     : files;
   filtered.forEach(f => selectedPaths.add(f.path));
+  previewMeta = {};
   renderTable();
   updateSelectionCount();
 }
@@ -394,7 +408,8 @@ function _updateCopySourceHint() {
     }
   }
   // Auto-select the most common one
-  if (topField) sel.value = topField;
+  const available = [...sel.options].map(option => option.value);
+  if (!copySourceChosen && topField && available.includes(topField)) sel.value = topField;
 }
 
 // ── RENDER TABLE ──────────────────────────────────────────────────────────────
@@ -442,7 +457,7 @@ function renderTable() {
 
     return `<tr class="file-row${sel ? ' selected' : ''}" data-path="${escHtml(f.path)}">
       <td style="width:32px;text-align:center;">
-        <input type="checkbox" class="row-cb" ${sel ? 'checked' : ''} style="accent-color:var(--gold);width:13px;height:13px;cursor:pointer;" onclick="toggleRow('${escJs(f.path)}', this)"/>
+        <input type="checkbox" class="row-cb" ${window.metafixBusy ? 'disabled' : ''} ${sel ? 'checked' : ''} style="accent-color:var(--gold);width:13px;height:13px;cursor:pointer;" />
       </td>
       <td class="name-col" title="${escHtml(f.path)}">${escHtml(f.name)}</td>
       <td class="date-col" title="${escHtml(curVal + (curField ? ' (' + curField + ')' : ''))}">${escHtml(curVal)}${fieldLabel}</td>
@@ -451,6 +466,12 @@ function renderTable() {
     </tr>`;
   }).join('');
 
+  const master = document.querySelector('thead input[type="checkbox"]');
+  if (master) {
+    const count = visible.filter(f => selectedPaths.has(f.path)).length;
+    master.checked = visible.length > 0 && count === visible.length;
+    master.indeterminate = count > 0 && count < visible.length;
+  }
   updateFileCount();
   updateSelectionCount();
 }
@@ -485,8 +506,54 @@ function toast(msg, type = '') {
 function escHtml(s) {
   return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
-function escJs(s) {
-  return String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'");
+function localInputValue(date) {
+  const pad = value => String(value).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}:${pad(date.getSeconds())}`;
 }
 
-init();
+function invalidatePreview() { previewMeta = {}; renderTable(); }
+function remapPaths(renamed) {
+  selectedPaths = new Set([...selectedPaths].map(path => renamed[path] || path));
+  for (const [oldPath, newPath] of Object.entries(renamed)) {
+    if (statusMap[oldPath]) statusMap[newPath] = statusMap[oldPath];
+    delete statusMap[oldPath];
+  }
+  previewMeta = {};
+}
+
+window.metafixBusy = false;
+function guarded(action) {
+  return async function(...args) {
+    if (window.metafixBusy) return;
+    window.metafixBusy = true;
+    const controls = [...document.querySelectorAll('button, input, select')];
+    const disabled = controls.map(control => control.disabled);
+    controls.forEach(control => control.disabled = true);
+    try { return await action(...args); }
+    catch (error) { toast(error.message, 'err'); setStatus(error.message); }
+    finally {
+      window.metafixBusy = false;
+      controls.forEach((control, i) => control.disabled = disabled[i]);
+      document.querySelectorAll('.row-cb').forEach(control => control.disabled = false);
+      document.getElementById('undoBtn').disabled = !hasLastBatch;
+      updateSelectionCount();
+      showProgress(false);
+    }
+  };
+}
+for (const name of ['browseExiftool', 'browseFfmpeg', 'addFiles', 'addFolder', 'clearFiles',
+                    'removeSelected', 'previewChanges', 'applyChanges', 'undoLast', 'cleanupBackups']) {
+  window[name] = guarded(window[name]);
+}
+window.receiveNativeDrop = guarded(window.receiveNativeDrop);
+document.addEventListener('change', event => {
+  if (event.target.classList.contains('row-cb')) {
+    toggleRow(event.target.closest('tr').dataset.path, event.target);
+  }
+  if (event.target.id === 'copySource') copySourceChosen = true;
+  if (event.target.matches('input, select')) invalidatePreview();
+});
+document.addEventListener('input', event => {
+  if (event.target.matches('input:not([type="checkbox"])')) invalidatePreview();
+});
+guarded(init)();

@@ -1,12 +1,11 @@
 """HTTP interface and native file-picker endpoints."""
-import os
-from pathlib import Path
 import webview
-from flask import Blueprint, request, jsonify, render_template
+from flask import Blueprint, request, jsonify, render_template, g
 from .config import state, save_config
-from .fields import MEDIA_EXTS, ALL_DEST_FIELDS, COPY_SOURCE_FIELDS
+from .fields import ALL_DEST_FIELDS, COPY_SOURCE_FIELDS
 from .metadata import read_metadata_batch
-from .files import _add_paths, _file_list
+from .files import _add_paths, _file_list, collect_paths
+from .session import session_lock
 from . import operations, __version__
 
 routes = Blueprint("metafix", __name__)
@@ -76,40 +75,35 @@ def add_files():
 def add_folder():
     data = request.json or {}
     recursive = data.get("recursive", False)
+    if not isinstance(recursive, bool):
+        return jsonify({'error': 'recursive must be true or false'}), 400
     result = webview.windows[0].create_file_dialog(webview.FOLDER_DIALOG)
     if result:
-        folder = Path(result[0])
-        iterator = folder.rglob("*") if recursive else folder.glob("*")
-        new_files = [str(p) for p in iterator if p.suffix.lower() in MEDIA_EXTS and p.is_file()]
-        _add_paths(new_files)
+        _add_paths(collect_paths([result[0]], recursive=recursive))
     return jsonify({"files": _file_list()})
 
 
 @routes.route("/api/drop_files", methods=["POST"])
 def drop_files():
-    """Called by JS with paths gathered via the pywebview expose() bridge."""
+    """Called by JS with paths received from the native DOM drop callback."""
     data = request.json or {}
     paths = data.get("paths", [])
+    if not isinstance(paths, list) or any(not isinstance(p, str) or '\n' in p or '\r' in p for p in paths):
+        return jsonify({'error': 'paths must be a list of valid paths'}), 400
     recursive = data.get("recursive", False)
-    new_files = []
-    for p in paths:
-        if p.startswith("file:///"):
-            p = p[8:].replace("/", os.sep)
-        pp = Path(p)
-        if pp.is_file() and pp.suffix.lower() in MEDIA_EXTS:
-            new_files.append(str(pp))
-        elif pp.is_dir():
-            iterator = pp.rglob("*") if recursive else pp.glob("*")
-            new_files.extend([str(f) for f in iterator
-                               if f.suffix.lower() in MEDIA_EXTS and f.is_file()])
-    _add_paths(new_files)
+    if not isinstance(recursive, bool):
+        return jsonify({'error': 'recursive must be true or false'}), 400
+    _add_paths(collect_paths(paths, recursive=recursive))
     return jsonify({"files": _file_list()})
 
 
 @routes.route("/api/remove_files", methods=["POST"])
 def remove_files():
     data = request.json or {}
-    to_remove = set(data.get("paths", []))
+    paths = data.get('paths', [])
+    if not isinstance(paths, list) or any(not isinstance(p, str) for p in paths):
+        return jsonify({'error': 'paths must be a list of strings'}), 400
+    to_remove = set(paths)
     state["files"] = [f for f in state["files"] if f not in to_remove]
     return jsonify({"files": _file_list()})
 
@@ -124,6 +118,8 @@ def clear_files():
 def read_metadata():
     data = request.json or {}
     files = data.get("files", state["files"])
+    if not isinstance(files, list) or any(not isinstance(f, str) or f not in state['files'] for f in files):
+        return jsonify({'error': 'Metadata paths must be loaded files'}), 400
     if not files:
         return jsonify({})
     meta = read_metadata_batch(files)
@@ -156,8 +152,26 @@ def undo():
 
 @routes.route("/api/cleanup_backups", methods=["POST"])
 def cleanup_backups():
-    result = operations.cleanup_backups()
+    result = operations.cleanup_backups(request.json or {})
     if isinstance(result, tuple):
         payload, status = result
         return jsonify(payload), status
     return jsonify(result)
+
+
+@routes.before_request
+def lock_session():
+    if not request.path.startswith('/api/'):
+        return None
+    if request.method == 'POST' and not isinstance(request.get_json(silent=True), dict):
+        return jsonify({'error': 'Request must be a JSON object'}), 400
+    if not session_lock.acquire(blocking=False):
+        return jsonify({'error': 'Another operation is in progress'}), 409
+    g.metafix_locked = True
+
+
+@routes.teardown_request
+def unlock_session(error):
+    if getattr(g, 'metafix_locked', False):
+        g.metafix_locked = False
+        session_lock.release()

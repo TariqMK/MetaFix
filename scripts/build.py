@@ -35,6 +35,15 @@ def main():
     if system == 'Darwin':
         command += ['--target-architecture', 'arm64', '--osx-bundle-identifier', 'com.tariqmk.metafix']
     subprocess.run(command + ['MetaFix.py'], check=True)
+    executable = {
+        'Windows': root / 'dist/MetaFix/MetaFix.exe',
+        'Darwin': root / 'dist/MetaFix.app/Contents/MacOS/MetaFix',
+        'Linux': root / 'dist/MetaFix/MetaFix',
+    }[system]
+    env = dict(os.environ)
+    env['QT_QPA_PLATFORM'] = 'offscreen'
+    subprocess.run([str(executable), '--smoke-test', '--expect-version', args.version],
+                   check=True, timeout=120, env=env)
     output = root / 'release-assets'
     output.mkdir(exist_ok=True)
     target = {'Windows': 'windows-x64', 'Darwin': 'macos-arm64', 'Linux': 'linux-x64'}[system]

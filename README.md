@@ -17,9 +17,9 @@ Built for the common situation where photos come off a phone, cloud service, or 
 - **Drag and drop** — drop files or folders directly onto the window
 - **Recursive folder scan** — optional, toggled per session
 - **Rename to timestamp** — renames files to `YYYY-MM-DD_HH-MM-SS_originalname.ext` after writing metadata, with `(1)`, `(2)` duplicate protection
-- **BACKUPS folder** — originals are retained in a `BACKUPS/` subfolder (ExifTool sidecars are moved after successful writes; AVI originals are copied before replacement)
-- **Undo** — restores the last batch from the BACKUPS folder
-- **Clean backups** — deletes the BACKUPS folders once you're satisfied
+- **BACKUPS folder** — verified originals are copied before writes into individually tracked folders under `BACKUPS/.metafix/`
+- **Undo** - restores the exact backups from the last modified batch, including original filenames; failed restores remain retryable
+- **Clean backups** - previews and confirms deletion of owned backups only; unrelated and legacy backups remain untouched
 - **Build version** - shown beneath the MetaFix name in muted text; source runs show `v0.0.0+dev`
 - **ExifTool path memory** — set once, remembered in `data/config.json` forever
 - **Non-destructive** — only metadata headers are modified; pixel data, video codec, and quality are never touched
@@ -88,7 +88,10 @@ allocating duplicate versions.
 
 Each release starts as a draft, receives all three archives, and is published
 only if `public` was selected. An upload failure leaves a draft for inspection.
-A new run counts that version and advances again. To publish an existing draft
+Rerunning the same workflow reuses its release version and verifies the tag's
+commit. Matching uploaded assets are skipped; missing assets are uploaded.
+Published assets are never replaced. A new workflow run counts the existing
+version and advances again. To publish an existing draft
 without incrementing, use **Releases > Edit > Publish release** instead.
 
 Build downloads are ZIP files for Windows and macOS, and a tar.gz file for Linux.
@@ -104,6 +107,10 @@ For a local build, use Python 3.12 and run:
 python -m pip install -r packaging/requirements.txt
 python scripts/build.py --version 1.0.0
 ```
+
+After packaging, the build script runs the actual executable in headless
+`--smoke-test` mode, checking Flask resources, the Qt backend import, and the
+embedded version before archiving. This is not an interactive GUI/media test.
 
 The tracked build script packages the current package layout. The legacy spec
 in ignored `Meta/` is unchanged and is not used by this workflow.
@@ -152,17 +159,24 @@ The sidebar shows all writable EXIF/metadata fields. All are ticked by default. 
 
 ### 5 — Preview
 
-Click **⊙ preview** to populate the After column without writing anything. The After column highlights in gold where the value will change, and stays dim where it won't. When a selection is active, the preview request covers only selected files. Preview values from earlier requests may remain until refreshed or cleared.
+Click **⊙ preview** to populate the After column without writing anything. The After column highlights in gold where the value will change, and stays dim where it won't. When a selection is active, preview covers only selected files. Changing the inputs or selection clears the old preview. Preview and apply share the same source-date calculation, including AVI files. An invalid date or missing source prevents the batch from starting.
 
 ### 6 — Apply
 
-Click **▶ apply changes**. The status bar shows exactly how many files were processed and reports any errors inline. ExifTool creates a `BACKUPS/` folder in each affected directory containing original copies of every file it touched.
+Click **▶ apply changes**. The status bar shows exactly how many files were processed and reports any errors inline. MetaFix creates a verified backup before each write. Controls are disabled while the batch runs, and conflicting backend requests are rejected. Rename is attempted only after a successful write. Timestamp and rename failures are reported separately from metadata-write success.
 
 ### 7 — Undo and cleanup
 
-**↩ undo last** restores the last batch of files from the BACKUPS folder. It copies the backup back over the modified file. Undo covers the most recent apply only.
+**Undo last** restores the exact backups from the last batch that modified files.
+It restores original filenames after renaming, refuses to overwrite another file
+at the old name, and checks that the modified file and backup contents have not
+changed. Failed restores remain available for retry. Undo history is in memory
+and does not survive restarting the app.
 
-**🗑 clean backups** permanently deletes the BACKUPS folder(s) for all directories containing currently loaded files. Do this once you're happy with the results.
+**Clean backups** first displays the exact list of tracked backups for confirmation.
+It deletes only verified MetaFix-owned backup files in the relevant directories.
+Unrelated contents and old untracked backups are left alone. New backups created
+since the preview require a fresh confirmation.
 
 ---
 
@@ -172,7 +186,7 @@ The **Update Windows creation date (PowerShell)** option sets filesystem
 CreationTime and LastWriteTime after successful metadata writes. This is
 separate from embedded fields such as `DateTimeOriginal`. It requires Windows
 and PowerShell; leave it disabled on macOS/Linux. PowerShell failures are
-currently logged and may not appear in the per-file error summary.
+reported in the per-file results, and the metadata change remains undoable.
 
 **Update filesystem date** controls ExifTool's `FileModifyDate` write for
 non-AVI files. The PowerShell option also sets LastWriteTime independently.
@@ -184,11 +198,13 @@ non-AVI files. The PowerShell option also sets LastWriteTime independently.
 ExifTool updates metadata; AVI files are remuxed with FFmpeg stream copy,
 without re-encoding. Original files are retained in `BACKUPS/`.
 
-Undo currently finds backups by the original filename. Repeated edits can
-restore an older backup, and undo after renaming can leave the renamed copy in
-place. Keep backups until you have checked the results. Cleanup permanently
-deletes whole `BACKUPS/` directories associated with loaded files or the last
-batch; it is not limited to individual files in the latest operation.
+Backup records under `BACKUPS/.metafix/` identify the original, resulting filename,
+and exact backup. Content hashes protect against restoring a changed backup or
+overwriting a file edited after apply. Keep backups until you have checked the
+results. Cleanup never recursively deletes the shared `BACKUPS/` folder.
+
+Old backups made before ownership tracking are not adopted or deleted
+automatically. Inspect those originals manually before removing them.
 
 ---
 
@@ -271,13 +287,27 @@ pip install -r requirements.txt
 ## Development checks
 
 ```bash
-node --test tests/release-version.test.cjs
+node --test tests/*.test.cjs
 python -m unittest discover -s tests -p "test_*.py"
 python scripts/check_app.py
 ```
 
-The build-path tests mock native packaging commands; the smoke checks exercise
-imports and Flask routes without opening a window or modifying media. Native
-builds run in GitHub Actions. Batch progress is currently an activity indicator,
+The Python safety tests use temporary dummy files and mocked external tools.
+Local real-tool checks also passed for generated JPEG, MP4, and AVI samples: write,
+read-back, copy preview, rename, and byte-exact undo.
+JavaScript tests cover version allocation, release retries, and UI state/error
+recovery. The build-path tests mock native packaging commands; source smoke
+checks exercise imports and Flask routes without opening a window or modifying
+media. GitHub Actions additionally runs the packaged executable's smoke mode. Batch progress is currently an activity indicator,
 not a measured per-file completion percentage. Recursive scanning works through
 **add folder**; native folder drag-and-drop scans only the immediate directory.
+
+Timestamp policy: naive input dates are local wall-clock times. Offset-aware
+source dates are converted to local time before editing; fractional seconds are
+accepted and edits use whole seconds. ExifTool reads and writes use
+`QuickTimeUTC=1` so integer QuickTime fields convert consistently. Calendar shifts
+operate on local wall-clock time, with conversion at the target date. The manual
+datetime picker starts at the current local time, not UTC.
+
+The desktop server binds an available loopback port before the window opens,
+so separate app instances do not share a fixed port or file selection.

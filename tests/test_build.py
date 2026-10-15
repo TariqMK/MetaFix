@@ -28,6 +28,11 @@ class BuildPathsTest(unittest.TestCase):
                          patch.object(build.shutil, 'make_archive'):
                         build.main()
                         command = run.call_args_list[0].args[0]
+                        smoke = run.call_args_list[1]
+                        self.assertIn('--smoke-test', smoke.args[0])
+                        self.assertIn('--expect-version', smoke.args[0])
+                        self.assertEqual(smoke.kwargs['timeout'], 120)
+                        self.assertEqual(smoke.kwargs['env']['QT_QPA_PLATFORM'], 'offscreen')
                         sources = []
                         for i, value in enumerate(command):
                             if value == '--add-data':

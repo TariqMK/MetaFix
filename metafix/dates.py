@@ -1,58 +1,70 @@
-"""Date parsing, shifts, and Windows filesystem timestamps."""
-import re
+"""Local wall-clock timestamps, offset-aware parsing, and Windows file dates."""
+from datetime import datetime
+import os
 import subprocess
+from dateutil.relativedelta import relativedelta
 
-def _strip_tz(dt_str):
-    if not dt_str or not isinstance(dt_str, str):
+
+def parse_datetime(value):
+    if not isinstance(value, str) or not value.strip():
+        raise ValueError("A valid datetime is required")
+    text = value.strip()
+    text = text[:10].replace(":", "-") + text[10:]
+    return datetime.fromisoformat(text.replace("Z", "+00:00"))
+
+
+def local_datetime(value):
+    dt = parse_datetime(value) if isinstance(value, str) else value
+    return dt.astimezone() if dt.tzinfo is not None else dt
+
+
+def format_datetime(value, include_offset=True):
+    dt = local_datetime(value)
+    result = dt.strftime("%Y:%m:%d %H:%M:%S")
+    if include_offset and dt.tzinfo is not None:
+        offset = dt.strftime("%z")
+        result += offset[:3] + ":" + offset[3:]
+    return result
+
+
+def _strip_tz(value):
+    """Compatibility helper for display/legacy callers; convert before stripping."""
+    try:
+        return format_datetime(value, include_offset=False)
+    except (ValueError, TypeError, OverflowError):
         return ""
-    s = dt_str.strip()
-    s = re.sub(r'[+-]\d{2}:\d{2}$', '', s).strip()
-    s = re.sub(r'Z$', '', s).strip()
-    return s
 
 
 def compute_shifted_dt(original_str, years=0, months=0, days=0, hours=0, minutes=0):
-    from datetime import datetime
-    from dateutil.relativedelta import relativedelta
-    s = original_str.strip()
-    for fmt in ("%Y:%m:%d %H:%M:%S", "%Y-%m-%d %H:%M:%S", "%Y:%m:%d %H:%M"):
-        try:
-            dt = datetime.strptime(s, fmt)
-            dt = dt + relativedelta(years=years, months=months, days=days,
-                                     hours=hours, minutes=minutes)
-            return dt.strftime("%Y:%m:%d %H:%M:%S")
-        except ValueError:
-            continue
-    return None
+    try:
+        # Shift local wall-clock time, allowing QuickTimeUTC to apply the target
+        # date's timezone/DST offset when it writes integer QuickTime fields.
+        dt = local_datetime(original_str).replace(tzinfo=None)
+        dt += relativedelta(years=years, months=months, days=days, hours=hours, minutes=minutes)
+        return format_datetime(dt, include_offset=False)
+    except (ValueError, TypeError, OverflowError):
+        return None
 
 
 def set_win_creation_time(filepath, dt_str):
-    """Set Windows filesystem CreationTime and LastWriteTime via PowerShell.
-    Uses -EncodedCommand (Base64 UTF-16LE) to bypass all quoting/encoding
-    issues with Unicode characters in paths (e.g. curly apostrophes)."""
-    import base64
+    """Pass paths as environment data, never as interpolated PowerShell code."""
+    script = (
+        "$ErrorActionPreference = 'Stop'; "
+        "$f = Get-Item -LiteralPath $env:METAFIX_FILE; "
+        "$d = [datetime]::ParseExact($env:METAFIX_DATE, 'yyyy-MM-dd HH:mm:ss', "
+        "[System.Globalization.CultureInfo]::InvariantCulture); "
+        "$f.CreationTime = $d; $f.LastWriteTime = $d"
+    )
+    env = dict(os.environ)
+    env['METAFIX_FILE'] = str(filepath)
+    env['METAFIX_DATE'] = local_datetime(dt_str).strftime('%Y-%m-%d %H:%M:%S')
     try:
-        win_dt = dt_str[:10].replace(":", "-") + dt_str[10:]
-        # Build the PS script with the path embedded as a here-string variable
-        # to completely sidestep quoting. Encode as UTF-16LE for -EncodedCommand.
-        ps_script = (
-            f'$p = @"\n{filepath}\n"@\n'
-            f'$p = $p.Trim()\n'
-            f'$f = Get-Item -LiteralPath $p\n'
-            f'$f.CreationTime = "{win_dt}"\n'
-            f'$f.LastWriteTime = "{win_dt}"\n'
+        result = subprocess.run(
+            ['powershell', '-NoProfile', '-NonInteractive', '-Command', script],
+            env=env, capture_output=True, encoding='utf-8', errors='replace', timeout=30,
         )
-        encoded = base64.b64encode(ps_script.encode("utf-16-le")).decode("ascii")
-        r = subprocess.run(
-            ["powershell", "-NoProfile", "-NonInteractive",
-             "-EncodedCommand", encoded],
-            capture_output=True, encoding="utf-8", errors="replace"
-        )
-        if r.returncode != 0:
-            print(f"PowerShell CreationTime error: {r.stderr.strip()}")
-            return False
-        return True
-    except Exception as e:
-        print(f"set_win_creation_time error: {e}")
-        return False
-
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(f"Windows timestamp update failed: {exc}") from exc
+    if result.returncode:
+        raise RuntimeError(f"Windows timestamp update failed: {result.stderr.strip()}")
+    return True
