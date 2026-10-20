@@ -18,6 +18,8 @@ class BuildPathsTest(unittest.TestCase):
                 (root / 'scripts').mkdir()
                 (root / 'metafix/templates').mkdir(parents=True)
                 (root / 'metafix/static').mkdir()
+                (root / 'docs/assets').mkdir(parents=True)
+                (root / 'docs/assets/icon.png').write_bytes(b'icon fixture')
                 original_cwd = Path.cwd()
                 try:
                     with patch.object(build, '__file__', str(root / 'scripts/build.py')), \
@@ -41,7 +43,12 @@ class BuildPathsTest(unittest.TestCase):
                                 self.assertTrue(source.is_absolute())
                                 self.assertTrue((root / 'build' / source).exists())
                                 sources.append(destination)
-                        self.assertEqual(sources, ['metafix/templates', 'metafix/static', 'metafix'])
+                        self.assertEqual(sources, ['metafix/templates', 'metafix/static', 'metafix', 'metafix/assets'])
+                        if system in ('Windows', 'Darwin'):
+                            self.assertEqual(command[command.index('--icon') + 1],
+                                             str(root / 'docs/assets/icon.png'))
+                        else:
+                            self.assertNotIn('--icon', command)
                         self.assertEqual((root / 'metafix/_version.txt').read_text().strip(), '1.2.3')
                         if system == 'Darwin':
                             self.assertEqual(command[command.index('--target-architecture') + 1], 'arm64')

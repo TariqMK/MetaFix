@@ -1,5 +1,6 @@
 """Native desktop window, server lifecycle, and drag-and-drop bridge."""
 import json
+from pathlib import Path
 import threading
 import webview
 from webview.dom import DOMEventHandler
@@ -69,7 +70,10 @@ def main():
             'MetaFix', f'http://127.0.0.1:{server.server_port}',
             width=1200, height=820, resizable=True, background_color='#0f0f0f',
         )
-        webview.start(bind, win, gui='qt')
+        icon = Path(__file__).resolve().parent / 'assets/icon.png'
+        if not icon.is_file():
+            icon = Path(__file__).resolve().parent.parent / 'docs/assets/icon.png'
+        webview.start(bind, win, gui='qt', icon=str(icon))
     finally:
         server.shutdown()
         server.server_close()

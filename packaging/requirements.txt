@@ -3,3 +3,4 @@ flask>=3,<4
 pywebview[pyside6]>=6,<7
 python-dateutil>=2.9,<3
 pyinstaller>=6.16,<7
+pillow>=11,<13

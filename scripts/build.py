@@ -18,6 +18,9 @@ def main():
     root = Path(__file__).resolve().parent.parent
     os.chdir(root)
     system = platform.system()
+    icon = root / 'docs/assets/icon.png'
+    if not icon.is_file():
+        raise SystemExit(f'Application icon is missing: {icon}')
     arch = platform.machine().lower()
     if system == 'Darwin' and arch != 'arm64':
         raise SystemExit('macOS releases must be built natively for Apple Silicon')
@@ -30,8 +33,12 @@ def main():
                '--add-data', f'{root / "metafix/templates"}:metafix/templates',
                '--add-data', f'{root / "metafix/static"}:metafix/static',
                '--add-data', f'{root / "metafix/_version.txt"}:metafix',
+               '--add-data', f'{icon}:metafix/assets',
                '--hidden-import', 'webview.platforms.qt',
                '--collect-data', 'webview', '--collect-submodules', 'webview.dom']
+    # PyInstaller uses Pillow to convert the PNG to ICO or ICNS as needed.
+    if system in ('Windows', 'Darwin'):
+        command += ['--icon', str(icon)]
     if system == 'Darwin':
         command += ['--target-architecture', 'arm64', '--osx-bundle-identifier', 'com.tariqmk.metafix']
     subprocess.run(command + ['MetaFix.py'], check=True)
