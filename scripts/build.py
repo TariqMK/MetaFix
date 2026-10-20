@@ -36,9 +36,12 @@ def main():
                '--add-data', f'{icon}:metafix/assets',
                '--hidden-import', 'webview.platforms.qt',
                '--collect-data', 'webview', '--collect-submodules', 'webview.dom']
-    # PyInstaller uses Pillow to convert the PNG to ICO or ICNS as needed.
+    # Embed the native file icon; Linux uses the bundled PNG at runtime.
     if system in ('Windows', 'Darwin'):
-        command += ['--icon', str(icon)]
+        native_icon = icon.with_suffix('.ico' if system == 'Windows' else '.icns')
+        if not native_icon.is_file():
+            raise SystemExit(f'Application icon is missing: {native_icon}')
+        command += ['--icon', str(native_icon)]
     if system == 'Darwin':
         command += ['--target-architecture', 'arm64', '--osx-bundle-identifier', 'com.tariqmk.metafix']
     subprocess.run(command + ['MetaFix.py'], check=True)

@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" width="1400" height="400" viewBox="0 0 1400 400" role="img" aria-labelledby="title desc">
+  <title id="title">MetaFix — Image &amp; Video Metadata Repair</title>
+  <desc id="desc">Wide blue and slate GitHub banner with a media and wrench icon, MetaFix title, and metadata repair subtitle.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#0E182B"/><stop offset="1" stop-color="#152641"/></linearGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#4BC5FF"/><stop offset="1" stop-color="#2463EB"/></linearGradient>
+    <linearGradient id="photo" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#4AB6F6"/><stop offset="1" stop-color="#2372E3"/></linearGradient>
+    <linearGradient id="panel" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#FFFFFF"/><stop offset="1" stop-color="#E6ECF5"/></linearGradient>
+    <filter id="shadow" x="-40%" y="-40%" width="180%" height="180%"><feDropShadow dx="0" dy="12" stdDeviation="12" flood-color="#00091B" flood-opacity=".38"/></filter>
+    <clipPath id="rounded"><rect width="1400" height="400" rx="26"/></clipPath>
+  </defs>
+  <g clip-path="url(#rounded)">
+    <rect width="1400" height="400" fill="url(#bg)"/>
+    <circle cx="1230" cy="-95" r="330" fill="#3276D9" opacity=".09"/>
+    <circle cx="1300" cy="390" r="280" fill="#55B7F8" opacity=".045"/>
+    <path d="M920 0V400M1020 0V400M1120 0V400M1220 0V400M1320 0V400M880 100H1400M880 200H1400M880 300H1400" stroke="#D9E7FF" stroke-opacity=".045" stroke-width="1"/>
+    <!-- Accent stripe -->
+    <rect x="0" y="0" width="9" height="400" fill="url(#blue)"/>
+    <!-- App icon enclosure -->
+    <rect x="69" y="61" width="276" height="276" rx="58" fill="#F7F9FD" filter="url(#shadow)"/>
+    <!-- Video card behind photo -->
+    <g transform="rotate(9 246 167)">
+      <rect x="198" y="102" width="110" height="142" rx="15" fill="#25354C"/>
+      <rect x="209" y="109" width="15" height="13" rx="3" fill="#D5DFEE"/><rect x="281" y="109" width="15" height="13" rx="3" fill="#D5DFEE"/>
+      <rect x="209" y="224" width="15" height="13" rx="3" fill="#D5DFEE"/><rect x="281" y="224" width="15" height="13" rx="3" fill="#D5DFEE"/>
+      <path d="M237 151Q237 146 243 149L275 168Q280 171 275 175L243 194Q237 197 237 191Z" fill="#E8F1FC"/>
+    </g>
+    <!-- Photo card -->
+    <g transform="rotate(-9 175 177)">
+      <rect x="103" y="116" width="153" height="131" rx="17" fill="#FFFFFF"/>
+      <rect x="113" y="126" width="133" height="111" rx="11" fill="url(#photo)"/>
+      <circle cx="156" cy="159" r="12" fill="#FFF4D1"/>
+      <path d="M114 209L155 171L184 196L211 160L246 197V226Q246 237 235 237H124Q113 237 113 226Z" fill="#163F81"/>
+    </g>
+    <!-- Metadata card -->
+    <rect x="145" y="200" width="155" height="96" rx="18" fill="url(#panel)" filter="url(#shadow)"/>
+    <path d="M170 226h10l8 8-15 15-12-12v-11z" fill="#536A89"/><circle cx="173" cy="231" r="2.7" fill="#E9EFF8"/>
+    <rect x="200" y="224" width="76" height="8" rx="4" fill="#9DADC2"/>
+    <rect x="200" y="245" width="60" height="8" rx="4" fill="#B9C6D6"/>
+    <rect x="164" y="264" width="112" height="8" rx="4" fill="#C5D0DF"/>
+    <!-- Wrench, intentionally simplified as clean symbol -->
+    <g transform="translate(269 263) rotate(43)" filter="url(#shadow)">
+      <path d="M-16-83A40 40 0 0 1 18-84L4-61L16-47L39-60A42 42 0 0 1 11-14V69A20 20 0 0 1-29 69V-14A42 42 0 0 1-16-83Z" fill="url(#blue)" stroke="#FFFFFF" stroke-width="6" stroke-linejoin="round"/>
+      <circle cx="-9" cy="67" r="9" fill="#E9F4FF"/>
+    </g>
+    <!-- Text lockup -->
+    <text x="410" y="180" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="96" font-weight="800" letter-spacing="-5" fill="#FFFFFF">Meta<tspan fill="#4DB7FF">Fix</tspan></text>
+    <rect x="416" y="205" width="76" height="5" rx="2.5" fill="url(#blue)"/>
+    <text x="411" y="258" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="29" font-weight="500" letter-spacing=".2" fill="#D0DEEF">Image &amp; Video Metadata Repair</text>
+    <text x="413" y="303" font-family="Inter, Segoe UI, Arial, sans-serif" font-size="19" font-weight="400" letter-spacing=".6" fill="#8DA5C2">Clean files. Correct metadata.</text>
+    <!-- Decorative metadata lines on far right -->
+    <g opacity=".45" fill="none" stroke="#5E95CB" stroke-width="2">
+      <rect x="1110" y="109" width="210" height="182" rx="22"/>
+      <path d="M1141 151h62M1217 151h70M1141 184h146M1141 217h94M1141 250h123" stroke-linecap="round"/>
+    </g>
+    <g fill="#4DB7FF"><circle cx="1120" cy="151" r="4"/><circle cx="1120" cy="184" r="4"/><circle cx="1120" cy="217" r="4"/><circle cx="1120" cy="250" r="4"/></g>
+  </g>
+</svg>

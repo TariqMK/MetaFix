@@ -20,6 +20,8 @@ class BuildPathsTest(unittest.TestCase):
                 (root / 'metafix/static').mkdir()
                 (root / 'docs/assets').mkdir(parents=True)
                 (root / 'docs/assets/icon.png').write_bytes(b'icon fixture')
+                (root / 'docs/assets/icon.ico').write_bytes(b'ico fixture')
+                (root / 'docs/assets/icon.icns').write_bytes(b'icns fixture')
                 original_cwd = Path.cwd()
                 try:
                     with patch.object(build, '__file__', str(root / 'scripts/build.py')), \
@@ -45,8 +47,9 @@ class BuildPathsTest(unittest.TestCase):
                                 sources.append(destination)
                         self.assertEqual(sources, ['metafix/templates', 'metafix/static', 'metafix', 'metafix/assets'])
                         if system in ('Windows', 'Darwin'):
+                            extension = 'ico' if system == 'Windows' else 'icns'
                             self.assertEqual(command[command.index('--icon') + 1],
-                                             str(root / 'docs/assets/icon.png'))
+                                             str(root / f'docs/assets/icon.{extension}'))
                         else:
                             self.assertNotIn('--icon', command)
                         self.assertEqual((root / 'metafix/_version.txt').read_text().strip(), '1.2.3')
