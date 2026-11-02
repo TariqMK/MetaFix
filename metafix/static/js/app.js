@@ -234,14 +234,21 @@ function updateShiftSummary() {
 // ── PREVIEW AND APPLY ─────────────────────────────────────────────────────────
 function previewReady() { return Object.keys(previewMeta).length > 0; }
 
+// One button previews then applies, so the second click of a double-click must not
+// count as permission to write. Apply stays locked briefly after each preview.
+const APPLY_UNLOCK_MS = 1000;
+let applyUnlockAt = 0;
+
+function applyLocked() { return previewReady() && Date.now() < applyUnlockAt; }
+
 function commitChanges() {
+  if (applyLocked()) return;
   return previewReady() ? applyChanges() : previewChanges();
 }
 
 function scopeWords() {
-  return selectedPaths.size > 0
-    ? plural(selectedPaths.size, 'selected file')
-    : `all ${plural(files.length, 'file')}`;
+  if (selectedPaths.size > 0) return plural(selectedPaths.size, 'selected file');
+  return files.length === 1 ? '1 file' : `all ${plural(files.length, 'file')}`;
 }
 
 function commitLabel() {
@@ -269,6 +276,8 @@ async function previewChanges() {
     setStatus(`${plural(count, 'file')} can't use this edit. Nothing will be written until you change the edit or deselect them.`, 'bad');
     return;
   }
+  applyUnlockAt = Date.now() + APPLY_UNLOCK_MS;
+  setTimeout(updateActionState, APPLY_UNLOCK_MS);
   renderTable();
   refreshStatus();
 }
@@ -470,7 +479,7 @@ function updateActionState() {
 
   const commit = document.getElementById('commitBtn');
   commit.textContent = commitLabel();
-  commit.disabled = window.metafixBusy || toolsMissing || !files.length;
+  commit.disabled = window.metafixBusy || toolsMissing || !files.length || applyLocked();
 
   document.getElementById('undoBtn').disabled = window.metafixBusy || !hasLastBatch;
   document.getElementById('undoLabel').textContent = hasLastBatch && undoCount
@@ -709,5 +718,7 @@ document.addEventListener('click', event => {
 });
 document.addEventListener('keydown', event => {
   if (event.key === 'Escape') setToolsOpen(false);
+  // A held key repeats, which must not walk the main button from preview into apply.
+  if (event.repeat && event.target.id === 'commitBtn') event.preventDefault();
 });
 guarded(init)();

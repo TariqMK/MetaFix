@@ -110,6 +110,31 @@ test('main button previews first, then names what it will apply to', () => {
   run("previewMeta={'a.jpg':'2024:01:01 12:00:00'}; selectedPaths=new Set(['a.jpg']);");
   assert.equal(run('commitLabel()'), 'Apply to 1 selected file');
 });
+test('second click of a double-click cannot apply after a fast preview', async () => {
+  const { run, sandbox, element } = ui();
+  const calls = [];
+  sandbox.fetch = async url => {
+    calls.push(url);
+    return { ok:true, status:200, json:async () => url.endsWith('preview')
+      ? { 'a.jpg':'2024:01:01 12:00:00' }
+      : { results:{}, errors:[], files:[], renamed:{}, can_undo:true, undo_count:1 } };
+  };
+  run("files=[{path:'a.jpg'}]; buildPayload=()=>({}); loadCurrentMeta=async()=>{};");
+  await run('commitChanges()');
+  assert.equal(element('commitBtn').disabled, true);
+  await run('commitChanges()');
+  assert.deepEqual(calls, ['/api/preview']);
+  // Once the pause has passed, a deliberate click applies.
+  run('applyUnlockAt = 0; updateActionState();');
+  assert.equal(element('commitBtn').disabled, false);
+  await run('commitChanges()');
+  assert.deepEqual(calls, ['/api/preview', '/api/apply']);
+});
+test('main button reads naturally for a single file', () => {
+  const { run } = ui();
+  run("files=[{path:'a.jpg'}];");
+  assert.equal(run('commitLabel()'), 'Preview 1 file');
+});
 test('apply refuses to run without a current preview', async () => {
   const { run, sandbox, element } = ui();
   let called = false;

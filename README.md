@@ -165,7 +165,7 @@ The main button at the top right starts as **Preview**. Click it to populate the
 
 ### 6 — Apply
 
-After a preview, the main button becomes **Apply to** and names the files it covers. Click it to write. The summary line above the table shows how many files were updated, and errors appear in their rows. MetaFix creates a verified backup before each write. Controls are disabled while the batch runs, and conflicting backend requests are rejected. Rename is attempted only after a successful write. Timestamp and rename failures are reported separately from metadata-write success.
+After a preview, the main button becomes **Apply to** and names the files it covers. It stays locked for one second, so the second click of a double-click can't write. Click it to write. The summary line above the table shows how many files were updated, and errors appear in their rows. MetaFix creates a verified backup before each write. Controls are disabled while the batch runs, and conflicting backend requests are rejected. Rename is attempted only after a successful write. Timestamp and rename failures are reported separately from metadata-write success.
 
 ### 7 — Undo and cleanup
 
@@ -306,7 +306,7 @@ python -m unittest discover -s tests -p "test_*.py"
 python scripts/check_app.py
 ```
 
-Current regression suite: **41 Python tests and 29 Node tests (70 total)**.
+Current regression suite: **41 Python tests and 31 Node tests (72 total)**.
 The Python safety tests use temporary dummy files and mocked external tools.
 Local real-tool checks also passed for generated JPEG, MP4, and AVI samples: write,
 read-back, copy preview, rename, and byte-exact undo. Additional real JPEG/AVI
