@@ -1,8 +1,9 @@
 """HTTP interface and native file-picker endpoints."""
+import os
 import webview
 from flask import Blueprint, request, jsonify, render_template, g
 from .config import state, save_config
-from .fields import ALL_DEST_FIELDS, COPY_SOURCE_FIELDS
+from .fields import ALL_DEST_FIELDS, COPY_SOURCE_FIELDS, DEST_FIELD_GROUPS
 from .metadata import read_metadata_batch
 from .files import _add_paths, _file_list, collect_paths
 from .session import session_lock
@@ -22,7 +23,9 @@ def get_config():
         "exiftool_path": state["config"].get("exiftool_path", ""),
         "ffmpeg_path":   state["config"].get("ffmpeg_path", ""),
         "dest_fields": ALL_DEST_FIELDS,
-        "copy_source_fields": COPY_SOURCE_FIELDS
+        "dest_field_groups": DEST_FIELD_GROUPS,
+        "copy_source_fields": COPY_SOURCE_FIELDS,
+        "is_windows": os.name == "nt"
     })
 
 

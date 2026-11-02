@@ -47,6 +47,9 @@ def compute_shifted_dt(original_str, years=0, months=0, days=0, hours=0, minutes
         return None
 
 
+WINDOWS_EPOCH_FILETIME = 116444736000000000  # 100ns ticks from 1601 to the Unix epoch
+
+
 def set_win_creation_time(filepath, dt_str):
     """Pass paths as environment data, never as interpolated PowerShell code."""
     script = (
@@ -69,3 +72,32 @@ def set_win_creation_time(filepath, dt_str):
     if result.returncode:
         raise RuntimeError(f"Windows timestamp update failed: {result.stderr.strip()}")
     return True
+
+
+def created_time_ns(filepath):
+    """The filesystem creation time on Windows; other platforms have no way to reset it."""
+    if os.name != 'nt':
+        return None
+    info = os.stat(filepath)
+    return getattr(info, 'st_birthtime_ns', info.st_ctime_ns)
+
+
+def set_win_created_ns(filepath, created_ns):
+    """Set only CreationTime, exactly, leaving LastWriteTime as it is."""
+    script = (
+        "$ErrorActionPreference = 'Stop'; "
+        "$f = Get-Item -LiteralPath $env:METAFIX_FILE; "
+        "$f.CreationTimeUtc = [datetime]::FromFileTimeUtc([long]$env:METAFIX_FILETIME)"
+    )
+    env = dict(os.environ)
+    env['METAFIX_FILE'] = str(filepath)
+    env['METAFIX_FILETIME'] = str(created_ns // 100 + WINDOWS_EPOCH_FILETIME)
+    try:
+        result = run_hidden(
+            ['powershell', '-NoProfile', '-NonInteractive', '-Command', script],
+            env=env, capture_output=True, encoding='utf-8', errors='replace', timeout=30,
+        )
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        raise RuntimeError(f"Windows timestamp update failed: {exc}") from exc
+    if result.returncode:
+        raise RuntimeError(f"Windows timestamp update failed: {result.stderr.strip()}")

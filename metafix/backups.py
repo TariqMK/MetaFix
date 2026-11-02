@@ -8,6 +8,7 @@ import tempfile
 import uuid
 
 from .config import APP_DIR
+from .dates import created_time_ns, set_win_created_ns
 
 OWNER = 'MetaFix-backup-v2'
 LEGACY_OWNER = 'MetaFix-backup-v1'
@@ -33,6 +34,8 @@ def create_backup(filepath):
         raise ValueError('Backup directory must not be a symbolic link')
     folder.mkdir(exist_ok=True)
     source_hash = fingerprint(source)
+    # A file copy can't carry its creation time, so the record keeps it for undo.
+    source_created = created_time_ns(source)
     backup = folder / source.name
     counter = 1
     # Exclusive creation protects older backups and concurrent external files.
@@ -52,7 +55,8 @@ def create_backup(filepath):
             raise ValueError('Media changed while it was being backed up; no write attempted')
         record = {'owner': OWNER, 'record_id': uuid.uuid4().hex,
                   'original': str(source), 'current': str(source),
-                  'backup': str(backup), 'before_hash': source_hash}
+                  'backup': str(backup), 'before_hash': source_hash,
+                  'before_created_ns': source_created}
         save_record(record)
         return record
     except Exception:
@@ -146,6 +150,15 @@ def restore_record(record):
             os.replace(name, current)
         finally:
             Path(name).unlink(missing_ok=True)
+    # The contents are already restored, so a failure here is a warning; retrying
+    # the restore would be refused because the file no longer matches after_hash.
+    created = record.get('before_created_ns')
+    if created is not None:
+        try:
+            set_win_created_ns(original, created)
+        except (OSError, RuntimeError) as exc:
+            return str(exc)
+    return None
 
 
 def delete_record(record):

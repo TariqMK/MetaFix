@@ -22,6 +22,8 @@ class SafetyTests(unittest.TestCase):
         self.root = Path(self.tmp.name).resolve()
         self.records_patch = patch.object(backups, 'RECORDS_DIR', self.root / 'app-data' / 'backup-records')
         self.records_patch.start()
+        self.created_patch = patch.object(backups, 'set_win_created_ns')
+        self.set_created = self.created_patch.start()
         self.file = self.root / 'photo.jpg'
         self.file.write_bytes(b'original')
         state.update(files=[str(self.file)], last_batch=[], config={'ffmpeg_path': 'ffmpeg'})
@@ -31,6 +33,7 @@ class SafetyTests(unittest.TestCase):
     def tearDown(self):
         state.clear()
         state.update(self.saved)
+        self.created_patch.stop()
         self.records_patch.stop()
         self.tmp.cleanup()
 
@@ -362,6 +365,59 @@ class SafetyTests(unittest.TestCase):
         response = client.post('/api/read_metadata', json={'files': ['not-loaded.jpg']})
         self.assertEqual(response.status_code, 400)
         self.assertIn('error', response.json)
+
+    def test_config_describes_field_groups_and_platform(self):
+        config = create_app().test_client().get('/api/config').json
+        grouped = [field for group in config['dest_field_groups'] for field in group['fields']]
+        self.assertCountEqual(grouped, config['dest_fields'])
+        self.assertIsInstance(config['is_windows'], bool)
+
+    def test_undo_count_tracks_files_that_can_still_be_restored(self):
+        result = self.apply()
+        self.assertEqual(result['undo_count'], 1)
+        self.assertEqual(operations.undo()['undo_count'], 0)
+
+    def test_undo_restores_recorded_created_time_after_rename(self):
+        with patch.object(backups, 'created_time_ns', return_value=1234500):
+            self.apply(rename=True)
+        result = operations.undo()
+        self.assertEqual(result['warnings'], [])
+        self.set_created.assert_called_once_with(self.file, 1234500)
+
+    def test_undo_skips_created_time_where_none_was_recorded(self):
+        with patch.object(backups, 'created_time_ns', return_value=None):
+            self.apply()
+        self.assertEqual(operations.undo()['warnings'], [])
+        self.set_created.assert_not_called()
+
+    def test_created_time_failure_warns_without_blocking_the_restore(self):
+        with patch.object(backups, 'created_time_ns', return_value=1234500):
+            self.apply()
+        self.set_created.side_effect = RuntimeError('PowerShell unavailable')
+        result = operations.undo()
+        self.assertTrue(result['ok'])
+        self.assertFalse(result['can_undo'])
+        self.assertIn('PowerShell unavailable', result['warnings'][0])
+        self.assertEqual(self.file.read_bytes(), b'original')
+
+    def test_created_time_passes_filename_and_exact_time_as_data(self):
+        evil = "photo'; Remove-Item x; '.jpg"
+        with patch.object(dates, 'run_hidden', return_value=SimpleNamespace(returncode=0, stderr='')) as run:
+            dates.set_win_created_ns(evil, 1_700_000_000_123_456_700)
+        script = run.call_args.args[0][-1]
+        env = run.call_args.kwargs['env']
+        self.assertNotIn(evil, script)
+        self.assertNotIn('LastWriteTime', script)
+        self.assertEqual(env['METAFIX_FILE'], evil)
+        self.assertEqual(env['METAFIX_FILETIME'], str(17000000001234567 + dates.WINDOWS_EPOCH_FILETIME))
+
+    def test_shift_can_mix_directions_across_units(self):
+        self.assertEqual(dates.compute_shifted_dt('2024:03:10 12:00:00', days=1, hours=-2),
+                         '2024:03:11 10:00:00')
+        request = {'mode': 'shift', 'days': 1, 'hours': -2, 'dest_fields': ['CreateDate']}
+        current = {str(self.file): {'value': '2024:03:10 12:00:00', 'field': 'CreateDate'}}
+        with patch.object(operations, 'read_metadata_batch', return_value=current):
+            self.assertEqual(operations.preview(request), {str(self.file): '2024:03:11 10:00:00'})
 
     def test_native_drop_only_hands_paths_to_guarded_ui(self):
         with patch.object(desktop, '_window') as window:

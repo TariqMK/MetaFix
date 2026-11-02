@@ -152,25 +152,29 @@ def apply_changes(data):
     state['files'] = [renamed.get(f, f) for f in state['files']]
     return {'ok': all(r['ok'] for r in results.values()), 'results': results,
             'errors': [f"{p}: {r['error']}" for p, r in results.items() if not r['ok']],
-            'renamed': renamed, 'files': _file_list(), 'can_undo': bool(state['last_batch'])}
+            'renamed': renamed, 'files': _file_list(), 'can_undo': bool(state['last_batch']),
+            'undo_count': len(state['last_batch'])}
 
 
 @exclusive
 def undo():
     if not state['last_batch']:
         return {'error': 'Nothing to undo'}, 400
-    pending, errors, renamed = [], {}, {}
+    pending, errors, renamed, warnings = [], {}, {}, []
     for record in tuple(state['last_batch']):
         try:
-            restore_record(record)
+            warning = restore_record(record)
             renamed[record['current']] = record['original']
+            if warning:
+                warnings.append(f"{record['original']}: {warning}")
         except Exception as exc:
             pending.append(record)
             errors[record['current']] = str(exc)
     state['last_batch'] = pending
     state['files'] = [renamed.get(f, f) for f in state['files']]
     return {'ok': not errors, 'file_errors': errors, 'errors': list(errors.values()),
-            'renamed': renamed, 'files': _file_list(), 'can_undo': bool(pending)}
+            'warnings': warnings, 'renamed': renamed, 'files': _file_list(), 'can_undo': bool(pending),
+            'undo_count': len(pending)}
 
 
 @exclusive
@@ -196,4 +200,4 @@ def cleanup_backups(data=None):
                 deleted.append(record['backup'])
     state['last_batch'] = [r for r in state['last_batch'] if r['backup'] not in deleted]
     return {'ok': not errors, 'count': len(deleted), 'errors': list(errors.values()),
-            'can_undo': bool(state['last_batch'])}
+            'can_undo': bool(state['last_batch']), 'undo_count': len(state['last_batch'])}

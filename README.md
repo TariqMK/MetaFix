@@ -1,6 +1,6 @@
 ![MetaFix](docs/assets/metafix-github-banner.svg)
 
-MetaFix is a desktop utility for bulk-repairing date and time metadata on photos and videos. It uses [ExifTool](https://exiftool.org/) under the hood and wraps it in a clean dark GUI built with Python, Flask, and pywebview.
+MetaFix is a desktop utility for bulk-repairing date and time metadata on photos and videos. It uses [ExifTool](https://exiftool.org/) under the hood and wraps it in a GUI built with Python, Flask, and pywebview that follows your system's light or dark appearance.
 
 Built for the common situation where photos come off a phone, cloud service, or old backup with wrong, missing, or inconsistent timestamps across their metadata fields.
 
@@ -8,9 +8,10 @@ Built for the common situation where photos come off a phone, cloud service, or 
 
 ## Features
 
-- **Three edit modes** — set a manual date, copy one field into others, or shift dates by years/months/days/hours/minutes
-- **Before/after columns** — see exactly what will change before you commit
-- **Field source indicator** — the Current date column shows which EXIF field the date was read from (e.g. `2026:06:06 21:34:15 (CreateDate)`)
+- **Three edit modes** — set a date, copy one field into others, or shift dates by years/months/days/hours/minutes, mixing directions such as 1 day later and 2 hours earlier
+- **Required preview** — the main button previews first, then names exactly which files it will apply to
+- **Before/after columns** — only the parts of a date that will change are highlighted
+- **Field source indicator** — the Read from column shows which metadata field the date came from, and flags dates that only exist on the file system
 - **Copy source hint** — the copy mode dropdown auto-selects the most common source field across your loaded files and annotates each option with a file count
 - **Filter by source field** — filter the file list to show only files whose date comes from a specific field, then select all of them with one click
 - **Selection-aware actions** — preview and apply affect ticked files when any are selected; with nothing selected, they affect all loaded files
@@ -18,9 +19,9 @@ Built for the common situation where photos come off a phone, cloud service, or 
 - **Recursive folder scan** — optional, toggled per session
 - **Rename to timestamp** — renames files to `YYYY-MM-DD_HH-MM-SS_originalname.ext` after writing metadata, with `(1)`, `(2)` duplicate protection
 - **BACKUPS folder** — verified originals are copied before writes directly into a flat `BACKUPS/` folder, retaining their filenames; repeat backups use `(1)`, `(2)`, etc.
-- **Undo** - restores the exact backups from the last modified batch, including original filenames; failed restores remain retryable
-- **Clean backups** - previews and confirms deletion of owned backups only; unrelated and untracked legacy backups remain untouched
-- **Build version** - shown beneath the MetaFix name in muted text; source runs show `v0.0.0+dev`
+- **Undo** - restores the exact backups from the last modified batch, including original filenames and, on Windows, file created dates; failed restores remain retryable
+- **Clean backups** - the Backups button lists tracked backups and confirms before deleting owned files only; unrelated and untracked legacy backups remain untouched
+- **Build version** - shown beside the MetaFix name in muted text; source runs show `v0.0.0+dev`
 - **ExifTool path memory** — set once, remembered in `data/config.json` forever
 - **No re-encoding** - ExifTool edits metadata; AVI uses FFmpeg stream copy, with verified originals retained for recovery
 - **Silent background tools** - metadata reads and writes do not open Windows terminal windows
@@ -55,7 +56,7 @@ pip install -r requirements.txt
 python MetaFix.py
 ```
 
-On first launch, click the ExifTool path bar and select its executable. For AVI files, also set FFmpeg and make ffprobe available. Paths are saved in `data/config.json`; the directory and file are created when you first save a tool path. Keep the app in a writable location. The pickers currently prefer `.exe` files; use All files on other platforms.
+On first launch, click **Choose ExifTool** and select its executable; files can be added once it is set. For AVI files, also set FFmpeg under **Tools** and make ffprobe available. Paths are saved in `data/config.json`; the directory and file are created when you first save a tool path. Keep the app in a writable location. The pickers currently prefer `.exe` files; use All files on other platforms.
 
 ---
 
@@ -82,7 +83,7 @@ Prerelease tags also reserve their base version. Unrelated tag names are ignored
 
 Releases are tagged `vMAJOR.MINOR.PATCH` at the exact commit that was built.
 The allocated version is embedded in each build and available as
-`metafix.__version__` and displayed beneath the MetaFix name in muted text; source checkouts report `0.0.0+dev`. The workflow does not
+`metafix.__version__` and displayed beside the MetaFix name in muted text; source checkouts report `0.0.0+dev`. The workflow does not
 commit version changes back to your branch. Tags and release records are the
 persistent version history, including drafts. Workflows run serially to avoid
 allocating duplicate versions.
@@ -120,7 +121,7 @@ in ignored `Meta/` is unchanged and is not used by this workflow.
 
 ### 1 — Load files
 
-Drag and drop photos or videos directly onto the window, or use the **add files** and **add folder** buttons in the toolbar. Enable **Recursive folders** before adding a folder to scan all subfolders.
+Drag and drop photos or videos directly onto the window, or use the **Add files** and **Add folder** buttons in the toolbar. Enable **Include subfolders** before adding a folder to scan all subfolders.
 
 Files appear in the table with their current metadata date and the field it was read from. The priority order for field selection is:
 
@@ -131,21 +132,21 @@ DateTimeOriginal → ContentCreateDate → CreateDate → MediaCreateDate
 
 ### 2 — Choose a mode
 
-**Manual** — Pick a specific date and time. That exact value will be written to all selected destination fields. Use this when you know the correct date (e.g. you scanned old photos and want to tag them with the day they were taken).
+**Set date** — Pick a specific date and time. That exact value will be written to all selected destination fields. Use this when you know the correct date (e.g. you scanned old photos and want to tag them with the day they were taken).
 
-**Copy** — Copies the value from one source field into all selected destination fields on the same file. Useful when one field has the correct date and the others don't. The dropdown auto-selects the most common source field across your loaded files and shows the count per field so you can confirm you're picking the right one.
+**Copy field** — Copies the value from one source field into all selected destination fields on the same file. Useful when one field has the correct date and the others don't. The dropdown auto-selects the most common source field across your loaded files and shows the count per field so you can confirm you're picking the right one.
 
-**Shift** — Moves every date forward or backward by a relative offset. Enter negative values to go backwards. Useful for correcting timezone errors (e.g. camera was set to the wrong timezone) or systematic clock drift.
+**Shift** — Moves each file's current date by a relative offset, then writes that one date to every selected destination field. Positive values move later and negative values move earlier, and they can be mixed: `1` day with `-2` hours moves a date 1 day later and 2 hours earlier, as the sentence under the inputs confirms. Useful for correcting timezone errors (e.g. camera was set to the wrong timezone) or systematic clock drift.
 
 ### 3 — Select files
 
-When any files are checked, preview and apply use that selection. **With nothing checked, both operate on all loaded files**, even if a source filter is active. Check individual rows or use the header checkbox to select all visible rows. The toolbar shows a **gold pill** with the current selection count.
+When any files are checked, preview and apply use that selection. **With nothing checked, both operate on all loaded files**, even if a source filter is active; the main button says "all" and the summary line counts any hidden files. Click a row or its checkbox, or use the header checkbox to select all visible rows. The toolbar shows the current selection count.
 
-Use the **filter by source field** dropdown to narrow the table to files that share a particular source field. A **select all filtered** button appears when a filter is active, letting you select exactly that subset in one click.
+Use the source filter dropdown to narrow the table to files that share a particular source field. A **Select all shown** button appears when a filter is active, letting you select exactly that subset in one click.
 
 ### 4 — Select destination fields
 
-The sidebar shows all writable EXIF/metadata fields. All are ticked by default. Untick any you don't want written.
+The settings panel shows all writable EXIF/metadata fields, grouped by the media they apply to. All are ticked by default. Untick any you don't want written.
 
 | Field | Used by |
 |-------|---------|
@@ -156,25 +157,25 @@ The sidebar shows all writable EXIF/metadata fields. All are ticked by default. 
 | `TrackCreateDate` | Individual tracks within video files |
 | `TrackModifyDate` | Track-level modification time |
 
-**Update filesystem date** writes `FileModifyDate` in addition, which affects what Windows Explorer shows in the "Date modified" column.
+**Update file modified date** writes `FileModifyDate` in addition, which affects what Windows Explorer shows in the "Date modified" column.
 
 ### 5 — Preview
 
-Click **⊙ preview** to populate the After column without writing anything. The After column highlights in gold where the value will change, and stays dim where it won't. When a selection is active, preview covers only selected files. Changing the inputs or selection clears the old preview. Preview and apply share the same source-date calculation, including AVI files. An invalid date or missing source prevents the batch from starting.
+The main button at the top right starts as **Preview**. Click it to populate the New date column without writing anything. Only the parts of a date that will change are highlighted, and "Same date" means the shown date already matches, though its other fields may still be written. When a selection is active, preview covers only selected files. Changing the inputs or selection clears the old preview, and the button returns to Preview. Preview and apply share the same source-date calculation, including AVI files. An invalid date or missing source prevents the batch from starting, with the reason shown in each affected row.
 
 ### 6 — Apply
 
-Click **▶ apply changes**. The status bar shows exactly how many files were processed and reports any errors inline. MetaFix creates a verified backup before each write. Controls are disabled while the batch runs, and conflicting backend requests are rejected. Rename is attempted only after a successful write. Timestamp and rename failures are reported separately from metadata-write success.
+After a preview, the main button becomes **Apply to** and names the files it covers. Click it to write. The summary line above the table shows how many files were updated, and errors appear in their rows. MetaFix creates a verified backup before each write. Controls are disabled while the batch runs, and conflicting backend requests are rejected. Rename is attempted only after a successful write. Timestamp and rename failures are reported separately from metadata-write success.
 
 ### 7 — Undo and cleanup
 
-**Undo last** restores the exact backups from the last batch that modified files.
+**Undo** restores the exact backups from the last batch that modified files. On Windows it also resets each file's created date, and tells you if PowerShell could not.
 It restores original filenames after renaming, refuses to overwrite another file
 at the old name, and checks that the modified file and backup contents have not
 changed. Failed restores remain available for retry. Undo history is in memory
 and does not survive restarting the app.
 
-**Clean backups** first displays the exact list of tracked backups for confirmation.
+**Backups** first displays the exact list of tracked backups for confirmation, with **Keep backups** as the default. Deleting a backup that the last edit relies on means that edit can no longer be undone.
 It deletes only verified MetaFix-owned backup files in the relevant directories.
 Unrelated contents and old untracked backups are left alone. New backups created
 since the preview require a fresh confirmation.
@@ -183,14 +184,14 @@ since the preview require a fresh confirmation.
 
 ## Windows filesystem dates
 
-The **Update Windows creation date (PowerShell)** option sets filesystem
+The **Update file created date (Windows)** option uses PowerShell to set filesystem
 CreationTime and LastWriteTime after successful metadata writes. This is
 separate from embedded fields such as `DateTimeOriginal`. It requires Windows
-and PowerShell; leave it disabled on macOS/Linux. PowerShell failures are
+and PowerShell, so it is hidden and off on macOS/Linux. PowerShell failures are
 reported in the per-file results, and the metadata change remains undoable.
 
-**Update filesystem date** controls ExifTool's `FileModifyDate` write for
-non-AVI files. The PowerShell option also sets LastWriteTime independently.
+**Update file modified date** controls ExifTool's `FileModifyDate` write for
+non-AVI files. The Windows option also sets LastWriteTime independently.
 
 ---
 
@@ -206,7 +207,8 @@ The flat `BACKUPS/` folder contains only backup media files. Tracking records
 under the app's `data/backup-records/` identify the original, resulting filename,
 and exact backup. Keep `data/backup-records/` if you want tracked cleanup to
 remain available after restarting. The backup media can be restored manually
-without these records. Content hashes protect against restoring a changed backup or
+without these records, although a manual restore does not reset the file created
+date. Content hashes protect against restoring a changed backup or
 overwriting a file edited after apply. Keep backups until you have checked the
 results. Cleanup never recursively deletes the shared `BACKUPS/` folder.
 
@@ -277,7 +279,7 @@ Python caches are ignored too.
 | Metadata | [ExifTool](https://exiftool.org/) (subprocess) |
 | Date maths | [python-dateutil](https://dateutil.readthedocs.io/) |
 | Packaging | [PyInstaller](https://pyinstaller.org/) |
-| UI fonts | Inter + IBM Plex Mono |
+| UI fonts | System UI and monospace fonts (no network needed) |
 
 ---
 
@@ -304,11 +306,15 @@ python -m unittest discover -s tests -p "test_*.py"
 python scripts/check_app.py
 ```
 
-Current regression suite: **34 Python tests and 20 Node tests (54 total)**.
+Current regression suite: **41 Python tests and 29 Node tests (70 total)**.
 The Python safety tests use temporary dummy files and mocked external tools.
 Local real-tool checks also passed for generated JPEG, MP4, and AVI samples: write,
 read-back, copy preview, rename, and byte-exact undo. Additional real JPEG/AVI
 checks passed with flat backups, hidden subprocesses, and Windows timestamp updates.
+The current interface was also exercised in a browser with real ExifTool on JPEG and
+PNG copies: preview, mixed-direction shift, rename, and byte-exact undo. Undo's
+created-date restore passed on real JPEG copies with and without renaming. The
+interface has not yet been checked in the native desktop window.
 JavaScript tests cover version allocation, release retries, and UI state/error
 recovery. The build-path tests mock native packaging commands; source smoke
 checks exercise imports and Flask routes without opening a window or modifying
@@ -317,14 +323,14 @@ These latest packaged checks still need a fresh native workflow run.
 
 Batch progress is currently an activity indicator,
 not a measured per-file completion percentage. Recursive scanning works through
-**add folder**; native folder drag-and-drop scans only the immediate directory.
+**Add folder**; native folder drag-and-drop scans only the immediate directory.
 
 Timestamp policy: naive input dates are local wall-clock times. Offset-aware
 source dates are converted to local time before editing; fractional seconds are
 accepted and edits use whole seconds. ExifTool reads and writes use
 `QuickTimeUTC=1` so integer QuickTime fields convert consistently. Calendar shifts
-operate on local wall-clock time, with conversion at the target date. The manual
-datetime picker starts at the current local time, not UTC.
+operate on local wall-clock time, with conversion at the target date. The Set date
+picker starts at the current local time, not UTC.
 
 The desktop server binds an available loopback port before the window opens,
 so separate app instances do not share a fixed port or file selection.
