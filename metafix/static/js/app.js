@@ -293,6 +293,7 @@ async function applyChanges() {
   payload.touch_fs = document.getElementById('optTouchFS').checked;
   payload.win_creation = document.getElementById('optWinCreation').checked;
   payload.rename = document.getElementById('optRename').checked;
+  payload.replace_name = document.getElementById('optReplaceName').checked;
   payload.dest_fields = getDestFields();
   payload.selected_paths = [...selectedPaths];
 
@@ -492,6 +493,9 @@ function updateActionState() {
   const scope = selectedPaths.size > 0 ? files.filter(f => selectedPaths.has(f.path)) : files;
   document.getElementById('aviNote').style.display = scope.some(f => /\.avi$/i.test(f.path)) ? '' : 'none';
   document.getElementById('renameNote').style.display = document.getElementById('optRename').checked ? '' : 'none';
+  document.getElementById('renameNote').textContent = document.getElementById('optReplaceName').checked
+    ? 'Replaces the name, like 2019-06-15_14-07-32.jpg'
+    : 'Adds a prefix, like 2019-06-15_14-07-32_photo.jpg';
 }
 
 // ── COPY SOURCE HINT ──────────────────────────────────────────────────────────

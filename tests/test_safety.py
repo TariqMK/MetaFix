@@ -84,6 +84,27 @@ class SafetyTests(unittest.TestCase):
         self.assertFalse(new.exists())
         self.assertEqual(state['files'], [str(self.file)])
 
+    def test_replace_name_drops_old_name_and_undo_restores_it(self):
+        result = self.apply(rename=True, replace_name=True)
+        new = Path(result['renamed'][str(self.file)])
+        self.assertEqual(new.name, '2024-01-02_03-04-05.jpg')
+        self.assertFalse(self.file.exists())
+        self.assertTrue(operations.undo()['ok'])
+        self.assertEqual(self.file.read_bytes(), b'original')
+        self.assertFalse(new.exists())
+
+    def test_replace_name_never_overwrites_existing_timestamp_name(self):
+        collision = self.root / '2024-01-02_03-04-05.jpg'
+        collision.write_bytes(b'existing')
+        result = self.apply(rename=True, replace_name=True)
+        self.assertEqual(collision.read_bytes(), b'existing')
+        self.assertEqual(Path(result['renamed'][str(self.file)]).name, '2024-01-02_03-04-05(1).jpg')
+
+    def test_replace_name_without_rename_keeps_name(self):
+        result = self.apply(replace_name=True)
+        self.assertEqual(result['renamed'], {})
+        self.assertTrue(self.file.exists())
+
     def test_failed_restore_remains_retryable(self):
         self.apply()
         edited = self.file.read_bytes()

@@ -33,7 +33,7 @@ def _validate(data):
     if (not isinstance(dest, list) or not dest
             or any(not isinstance(f, str) or f not in ALL_DEST_FIELDS for f in dest)):
         raise ValueError('Select valid destination fields')
-    for option in ('touch_fs', 'win_creation', 'rename'):
+    for option in ('touch_fs', 'win_creation', 'rename', 'replace_name'):
         if option in data and not isinstance(data[option], bool):
             raise ValueError(f'{option} must be true or false')
     source = data.get('source_field', 'DateTimeOriginal')
@@ -126,7 +126,7 @@ def apply_changes(data):
                     problems.append(str(exc))
             if data.get('rename', False):
                 try:
-                    new_path = _rename_file(file, value)
+                    new_path = _rename_file(file, value, data.get('replace_name', False))
                     record['current'] = new_path
                     renamed[file] = new_path
                     save_record(record)

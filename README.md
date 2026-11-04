@@ -17,7 +17,7 @@ Built for the common situation where photos come off a phone, cloud service, or 
 - **Selection-aware actions** — preview and apply affect ticked files when any are selected; with nothing selected, they affect all loaded files
 - **Drag and drop** — drop files or folders directly onto the window
 - **Recursive folder scan** — optional, toggled per session
-- **Rename to timestamp** — renames files to `YYYY-MM-DD_HH-MM-SS_originalname.ext` after writing metadata, with `(1)`, `(2)` duplicate protection
+- **Rename to timestamp** — renames files to `YYYY-MM-DD_HH-MM-SS_originalname.ext` after writing metadata, with `(1)`, `(2)` duplicate protection. Tick **Overwrite the old name** as well to drop the original name and get `YYYY-MM-DD_HH-MM-SS.ext`
 - **BACKUPS folder** — verified originals are copied before writes directly into a flat `BACKUPS/` folder, retaining their filenames; repeat backups use `(1)`, `(2)`, etc.
 - **Undo** - restores the exact backups from the last modified batch, including original filenames and, on Windows, file created dates; failed restores remain retryable
 - **Clean backups** - the Backups button lists tracked backups and confirms before deleting owned files only; unrelated and untracked legacy backups remain untouched
@@ -193,6 +193,10 @@ reported in the per-file results, and the metadata change remains undoable.
 **Update file modified date** controls ExifTool's `FileModifyDate` write for
 non-AVI files. The Windows option also sets LastWriteTime independently.
 
+**Overwrite the old name** only applies when **Rename files with the new date** is
+also ticked. The name becomes just the date, with `(1)`, `(2)` when several files
+share one. Undo still restores the original name.
+
 ---
 
 ## File safety
@@ -306,7 +310,7 @@ python -m unittest discover -s tests -p "test_*.py"
 python scripts/check_app.py
 ```
 
-Current regression suite: **41 Python tests and 31 Node tests (72 total)**.
+Current regression suite: **44 Python tests and 31 Node tests (75 total)**.
 The Python safety tests use temporary dummy files and mocked external tools.
 Local real-tool checks also passed for generated JPEG, MP4, and AVI samples: write,
 read-back, copy preview, rename, and byte-exact undo. Additional real JPEG/AVI

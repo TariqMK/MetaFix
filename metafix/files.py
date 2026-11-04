@@ -46,14 +46,15 @@ def _file_list():
     return [{'path': f, 'name': Path(f).name} for f in state['files']]
 
 
-def _rename_file(filepath, datetime_value):
+def _rename_file(filepath, datetime_value, replace_name=False):
     stamp = format_datetime(datetime_value, include_offset=False).replace(':', '-', 2)
     stamp = stamp.replace(' ', '_').replace(':', '-')
     path = Path(filepath)
-    target = path.with_name(f'{stamp}_{path.name}')
+    base = stamp if replace_name else f'{stamp}_{path.stem}'
+    target = path.with_name(f'{base}{path.suffix}')
     counter = 1
     while target.exists():
-        target = path.with_name(f'{stamp}_{path.stem}({counter}){path.suffix}')
+        target = path.with_name(f'{base}({counter}){path.suffix}')
         counter += 1
     # Exclusive hard-link creation avoids overwriting a file that appears after
     # the existence check. Both paths are on the same filesystem/directory.
