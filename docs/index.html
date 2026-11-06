@@ -1,0 +1,230 @@
+<!-- MetaFix product page: one-page site served by GitHub Pages from docs/. -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MetaFix · Fix the dates on your photos and videos</title>
+<meta name="description" content="MetaFix is a free desktop app that repairs date and time metadata on photos and videos in bulk. Preview every change, keep a backup of every original, and undo the last batch.">
+<meta name="theme-color" content="#0f0f10" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#f4f4f5" media="(prefers-color-scheme: light)">
+<meta name="color-scheme" content="dark light">
+<link rel="icon" href="assets/icon-small.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta property="og:type" content="website">
+<meta property="og:title" content="MetaFix · Fix the dates on your photos and videos">
+<meta property="og:description" content="Repair date and time metadata on photos and videos in bulk. Preview first, back up every original, undo the last batch.">
+<meta property="og:url" content="https://tariqmk.github.io/MetaFix/">
+<meta property="og:image" content="https://tariqmk.github.io/MetaFix/social-card.png">
+<meta property="og:image:width" content="1280">
+<meta property="og:image:height" content="640">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="MetaFix · Fix the dates on your photos and videos">
+<meta name="twitter:description" content="Repair date and time metadata on photos and videos in bulk. Preview first, back up every original, undo the last batch.">
+<meta name="twitter:image" content="https://tariqmk.github.io/MetaFix/social-card.png">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="nav">
+  <div class="wrap nav-in">
+    <a class="logo" href="#top" aria-label="MetaFix home">
+      <img src="assets/icon-small.svg" alt="" width="28" height="28">
+      <span>MetaFix</span>
+    </a>
+    <nav class="nav-links" aria-label="Sections">
+      <a href="#features">Features</a>
+      <a href="#download">Download</a>
+      <a href="https://github.com/TariqMK/MetaFix">GitHub</a>
+    </nav>
+    <a class="btn small primary" href="#download">Download</a>
+  </div>
+</header>
+
+<main id="top">
+
+  <!-- HERO -->
+  <section class="hero">
+    <svg class="motif" viewBox="0 0 1000 1000" aria-hidden="true">
+      <g id="dial"></g>
+      <path d="M500 180 A320 320 0 1 1 180 500" />
+      <path d="M500 250 A250 250 0 1 1 250 500" />
+    </svg>
+    <div class="wrap hero-text">
+      <h1>Fix the dates on your<br>photos and videos.</h1>
+      <p class="lede">MetaFix repairs date and time metadata in bulk. Load the files that came off a phone, a cloud service or an old backup with wrong or missing dates, see exactly what will change, then write it.</p>
+      <div class="actions">
+        <a class="btn primary" id="heroDownload" href="https://github.com/TariqMK/MetaFix/releases/latest">Download MetaFix</a>
+        <a class="btn ghost" href="https://github.com/TariqMK/MetaFix">View source</a>
+      </div>
+      <p class="meta mono" id="heroMeta">Free and open source · Windows, macOS, Linux · Uses ExifTool</p>
+    </div>
+
+    <div class="wrap">
+      <div class="window" aria-label="Live preview of the MetaFix window" role="img">
+        <div class="w-head">
+          <span class="w-brand"><b>MetaFix</b><span class="w-ver" id="pvVer">v2.0.2</span></span>
+          <span class="w-quiet w-tools"><svg class="i" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>Tools</span>
+          <span class="grow"></span>
+          <span class="w-quiet" id="pvUndo"><svg class="i" viewBox="0 0 24 24"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>Undo</span>
+          <span class="w-quiet w-backups"><svg class="i" viewBox="0 0 24 24"><rect x="2" y="3" width="20" height="5" rx="1"/><path d="M4 8v11a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8"/><path d="M10 12h4"/></svg>Backups</span>
+          <span class="w-primary" id="pvCommit">Preview changes</span>
+        </div>
+        <div class="w-main">
+          <div class="w-files">
+            <div class="w-toolbar">
+              <span class="w-btn"><svg class="i" viewBox="0 0 24 24"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Add files</span>
+              <span class="w-btn w-hide-s"><svg class="i" viewBox="0 0 24 24"><path d="M12 10v6"/><path d="M9 13h6"/><path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/></svg>Add folder</span>
+              <span class="grow"></span>
+              <span class="w-count" id="pvCount">12 files</span>
+              <span class="w-select" id="pvFilter">All sources</span>
+            </div>
+            <div class="w-summary" id="pvSummary"><svg class="i ok" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg><span id="pvStatus"></span></div>
+            <table class="w-table">
+              <thead><tr><th class="c-box"><span class="cb" id="pvAll"></span></th><th>File</th><th class="c-date">Current date</th><th class="c-src">Read from</th><th class="c-date">New date</th><th class="c-status">Status</th></tr></thead>
+              <tbody id="pvRows"></tbody>
+            </table>
+          </div>
+          <div class="w-side">
+            <div class="w-tabs"><span data-m="manual">Set date</span><span data-m="copy">Copy field</span><span data-m="shift">Shift</span></div>
+            <div class="w-panel" id="pvPanel"></div>
+            <div class="w-sec">
+              <div class="w-label">Write to</div>
+              <div class="w-check on mono">DateTimeOriginal</div>
+              <div class="w-check on mono">CreateDate</div>
+              <div class="w-check on mono">ModifyDate</div>
+              <div class="w-check on mono">MediaCreateDate</div>
+            </div>
+            <div class="w-sec">
+              <div class="w-label">Also</div>
+              <div class="w-check on">Update file modified date</div>
+              <div class="w-check on">Update file created date (Windows)</div>
+              <div class="w-check" id="pvRename">Rename files with the new date</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- PRINCIPLES -->
+  <section class="wrap principles">
+    <div>
+      <h3>Nothing changes until you apply.</h3>
+      <p>The main button previews first. A second press applies, and it names exactly which files it will write.</p>
+    </div>
+    <div>
+      <h3>Every original is copied first.</h3>
+      <p>Before a write, MetaFix copies each file into a <span class="mono">BACKUPS</span> folder beside it. Undo restores the last batch, names included.</p>
+    </div>
+    <div>
+      <h3>Metadata only. No re-encoding.</h3>
+      <p>ExifTool edits the date fields and leaves the image and video data alone. AVI files use an FFmpeg stream copy.</p>
+    </div>
+  </section>
+
+  <!-- FEATURES -->
+  <section class="features" id="features">
+    <div class="wrap">
+      <h2>See every change<br>before it is written.</h2>
+
+      <div class="panel wide">
+        <div class="panel-copy">
+          <h3>Shift by any amount, in either direction</h3>
+          <p>A camera clock set a year behind and two hours ahead is one edit. Mix positive and negative values, and the sentence under the inputs says what will happen. Only the parts of each date that change are underlined.</p>
+        </div>
+        <div class="shift-demo">
+          <div class="shift-inputs" id="shiftInputs"></div>
+          <p class="shift-say" id="shiftSay"></p>
+          <div class="diff-list" id="diffList"></div>
+        </div>
+      </div>
+
+      <div class="panel-row">
+        <div class="panel">
+          <div class="panel-copy">
+            <h3>Know where each date came from</h3>
+            <p>The Read from column names the field each date was read from. Dates that exist only on the file system are flagged. Filter by a field to select exactly those files.</p>
+          </div>
+          <div class="src-demo">
+            <div class="chips" id="srcChips" role="group" aria-label="Filter by date source"></div>
+            <div class="src-list" id="srcList"></div>
+          </div>
+        </div>
+        <div class="panel">
+          <div class="panel-copy">
+            <h3>Undo the last batch</h3>
+            <p>Undo copies each original back from <span class="mono">BACKUPS</span>, with its original filename and, on Windows, its created date.</p>
+          </div>
+          <div class="undo-demo">
+            <div class="tree mono" id="tree"></div>
+            <button class="btn small" id="undoToggle" type="button">Apply</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="grid">
+        <div><h4>Three edit modes</h4><p>Set one date, copy one field into others, or shift dates by years to minutes.</p></div>
+        <div><h4>Required preview</h4><p>The main button previews first, then names the files it will apply to.</p></div>
+        <div><h4>Before and after</h4><p>Current and new dates sit side by side, with changed parts underlined.</p></div>
+        <div><h4>Copy source hint</h4><p>Copy mode picks the most common source field and shows a file count for each.</p></div>
+        <div><h4>Selection-aware</h4><p>Actions use the ticked files. With nothing ticked, they use every loaded file.</p></div>
+        <div><h4>Drag and drop</h4><p>Drop files or folders onto the window. Subfolder scanning is one checkbox.</p></div>
+        <div><h4>Rename to timestamp</h4><p><span class="mono">2019-06-14_18-30-00_photo.jpg</span>, with <span class="mono">(1)</span>, <span class="mono">(2)</span> for duplicates. Or drop the old name.</p></div>
+        <div><h4>Clean backups</h4><p>Lists tracked backups and asks before it deletes. Files it did not make stay.</p></div>
+        <div><h4>Windows created date</h4><p>Optionally sets the Date created that Windows Explorer shows, as well as the metadata.</p></div>
+        <div><h4>Light and dark</h4><p>The window follows your system appearance.</p></div>
+        <div><h4>Quiet background tools</h4><p>Reads and writes do not open terminal windows on Windows.</p></div>
+        <div><h4>Set once</h4><p>The ExifTool and FFmpeg paths are saved and remembered between sessions.</p></div>
+      </div>
+
+      <p class="formats"><span>Photos</span> <span class="mono">JPG JPEG PNG HEIC WebP TIFF</span> <span>Videos</span> <span class="mono">MOV MP4 M4V AVI MKV 3GP GIF</span></p>
+    </div>
+  </section>
+
+  <!-- DOWNLOAD -->
+  <section class="download wrap" id="download">
+    <h2>Download</h2>
+    <p class="dl-meta mono" id="dlMeta">Latest release on GitHub</p>
+    <div class="cards">
+      <a class="card" data-os="windows" href="https://github.com/TariqMK/MetaFix/releases/latest">
+        <span class="card-top"><b>Windows</b><span class="mono" data-size>x64 · .zip</span></span>
+        <span class="card-body">For Windows 10 and 11. Extract the ZIP, then run <span class="mono">MetaFix.exe</span>. Windows is the most tested platform.</span>
+        <span class="card-go">Download for Windows</span>
+      </a>
+      <a class="card" data-os="macos" href="https://github.com/TariqMK/MetaFix/releases/latest">
+        <span class="card-top"><b>macOS</b><span class="mono" data-size>Apple Silicon · .zip</span></span>
+        <span class="card-body">For Apple Silicon Macs. There is no Intel build. The app is unsigned and not notarized, so macOS asks before it opens it the first time.</span>
+        <span class="card-go">Download for macOS</span>
+      </a>
+      <a class="card" data-os="linux" href="https://github.com/TariqMK/MetaFix/releases/latest">
+        <span class="card-top"><b>Linux</b><span class="mono" data-size>x64 · .tar.gz</span></span>
+        <span class="card-body">For Ubuntu 22.04 or a compatible newer desktop. Extract the archive. It needs the system desktop libraries.</span>
+        <span class="card-go">Download for Linux</span>
+      </a>
+    </div>
+    <div class="needs">
+      <p><b>You also need ExifTool.</b> MetaFix does not include it. On first launch, select <b>Choose ExifTool</b> and point it at the executable from <a href="https://exiftool.org/">exiftool.org</a>. For AVI files, also set FFmpeg under <b>Tools</b> and keep ffprobe beside it.</p>
+      <p class="fine">Keep the app in a folder you can write to; it saves tool paths in <span class="mono">data/config.json</span>. Native media editing on macOS and Linux still needs more testing. To run from source with Python 3.10 or later, see the <a href="https://github.com/TariqMK/MetaFix#installation">README</a>.</p>
+    </div>
+  </section>
+</main>
+
+<footer class="foot">
+  <div class="wrap foot-in">
+    <a class="logo" href="#top" aria-label="MetaFix home">
+      <img src="assets/icon-small.svg" alt="" width="24" height="24">
+      <span>MetaFix</span>
+    </a>
+    <p>Keep the <span class="mono">BACKUPS</span> folders until you have checked the results.</p>
+    <nav aria-label="Project links">
+      <a href="https://github.com/TariqMK/MetaFix">GitHub</a>
+      <a href="https://github.com/TariqMK/MetaFix/releases">Releases</a>
+      <a href="https://github.com/TariqMK/MetaFix/issues">Issues</a>
+    </nav>
+  </div>
+</footer>
+
+<script src="app.js"></script>
+</body>
+</html>
