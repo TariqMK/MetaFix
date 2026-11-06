@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="0 0 1024 1024">
+<defs>
+<linearGradient id="body" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#30353D"/><stop offset="1" stop-color="#121418"/></linearGradient>
+<radialGradient id="glow" cx="0.5" cy="0.32" r="0.6"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.09"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0"/></radialGradient>
+<linearGradient id="rim" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#FFFFFF" stop-opacity="0.18"/><stop offset="0.5" stop-color="#FFFFFF" stop-opacity="0.03"/><stop offset="1" stop-color="#FFFFFF" stop-opacity="0.06"/></linearGradient>
+<linearGradient id="bone" x1="0" y1="0" x2="0.4" y2="1"><stop offset="0" stop-color="#FBFAF6"/><stop offset="1" stop-color="#D8D3C7"/></linearGradient>
+<linearGradient id="arrow" x1="0.2" y1="0" x2="0.8" y2="1" gradientUnits="objectBoundingBox"><stop offset="0" stop-color="#FFFFFF"/><stop offset="1" stop-color="#CFC9BB"/></linearGradient>
+<linearGradient id="brass" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#F3D58E"/><stop offset="0.55" stop-color="#C9973F"/><stop offset="1" stop-color="#8E6224"/></linearGradient>
+<linearGradient id="sky" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#5A5F69"/><stop offset="0.7" stop-color="#3A3E46"/><stop offset="1" stop-color="#6E5A3A"/></linearGradient>
+<radialGradient id="sun" cx="0.4" cy="0.35" r="0.7"><stop offset="0" stop-color="#FCE7B0"/><stop offset="0.6" stop-color="#D9A84E"/><stop offset="1" stop-color="#A8752C"/></radialGradient>
+<linearGradient id="hillBack" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#3B4049"/><stop offset="1" stop-color="#2A2E35"/></linearGradient>
+<linearGradient id="hillFront" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#23262C"/><stop offset="1" stop-color="#15171B"/></linearGradient>
+<clipPath id="photo"><rect x="408" y="444" width="208" height="136" rx="8"/></clipPath>
+<filter id="shadow" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="14" stdDeviation="16" flood-color="#000000" flood-opacity="0.5"/></filter>
+<filter id="soft" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#000000" flood-opacity="0.45"/></filter>
+</defs>
+<rect x="60" y="60" width="904" height="904" rx="200" fill="url(#body)"/>
+<rect x="60" y="60" width="904" height="904" rx="200" fill="url(#glow)"/>
+<path d="M512 252 A260 260 0 1 1 252 512" fill="none" stroke="url(#arrow)" stroke-width="84" stroke-linecap="round"/>
+<path d="M252 350 L346 500 Q352 512 338 512 L166 512 Q152 512 158 500 Z" fill="url(#bone)"/>
+<g transform="rotate(-6 512 512)">
+<rect x="384" y="420" width="256" height="184" rx="24" fill="url(#bone)"/>
+<g clip-path="url(#photo)">
+<rect x="408" y="444" width="208" height="136" fill="#4A4F58"/>
+<circle cx="458" cy="486" r="24" fill="url(#brass)"/>
+<path d="M400 590 L480 520 L530 556 L624 500 L624 590 Z" fill="#1B1E23"/>
+</g>
+</g>
+</svg>

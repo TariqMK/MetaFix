@@ -1,4 +1,4 @@
-![MetaFix](docs/assets/metafix-github-banner.svg)
+![MetaFix](docs/assets/banner.svg)
 
 MetaFix is a desktop utility for bulk-repairing date and time metadata on photos and videos. It uses [ExifTool](https://exiftool.org/) under the hood and wraps it in a GUI built with Python, Flask, and pywebview that follows your system's light or dark appearance.
 
@@ -250,7 +250,7 @@ MetaFix/
 |-- scripts/                    Build, versioning, smoke checks
 |-- tests/                      Safety, UI, release, version, build checks
 |-- packaging/requirements.txt  Release build dependencies
-|-- docs/assets/banner.svg      README banner
+|-- docs/assets/              README banner and app icons (SVG masters)
 |-- data/                       Generated app data (ignored)
 |   |-- config.json             Saved executable paths
 |   `-- backup-records/         Ownership and integrity records
