@@ -4,6 +4,20 @@ MetaFix is a desktop utility for bulk-repairing date and time metadata on photos
 
 Built for the common situation where photos come off a phone, cloud service, or old backup with wrong, missing, or inconsistent timestamps across their metadata fields.
 
+![Shift mode preview: two photos from a camera with a wrong clock move 1 year and 2 hours later](docs/assets/screenshots/shift-preview-dark.png)
+
+---
+
+## Screenshots
+
+**Set date for files that have no metadata date.** The list is filtered to files whose date comes only from the file system. The new names will start with the new date.
+
+![Set date preview for three files filtered by the FileCreateDate source](docs/assets/screenshots/set-date-preview-dark.png)
+
+**Light appearance.** MetaFix follows the system light or dark setting.
+
+![Shift mode preview in the light appearance](docs/assets/screenshots/shift-preview-light.png)
+
 ---
 
 ## Features
@@ -250,7 +264,7 @@ MetaFix/
 |-- scripts/                    Build, versioning, smoke checks
 |-- tests/                      Safety, UI, release, version, build checks
 |-- packaging/requirements.txt  Release build dependencies
-|-- docs/assets/              README banner and app icons (SVG masters)
+|-- docs/assets/              README banner, screenshots and app icons (SVG masters)
 |-- data/                       Generated app data (ignored)
 |   |-- config.json             Saved executable paths
 |   `-- backup-records/         Ownership and integrity records
