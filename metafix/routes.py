@@ -7,7 +7,7 @@ from .fields import ALL_DEST_FIELDS, COPY_SOURCE_FIELDS, DEST_FIELD_GROUPS
 from .metadata import read_metadata_batch
 from .files import _add_paths, _file_list, collect_paths
 from .session import session_lock
-from . import operations, __version__
+from . import operations, updates, __version__
 
 routes = Blueprint("metafix", __name__)
 
@@ -162,12 +162,26 @@ def cleanup_backups():
     return jsonify(result)
 
 
+@routes.route("/api/update/check", methods=["POST"])
+def check_for_update():
+    return jsonify(updates.check(__version__))
+
+
+@routes.route("/api/update/open", methods=["POST"])
+def open_release_page():
+    updates.open_release_page()
+    return jsonify({"ok": True})
+
+
 @routes.before_request
 def lock_session():
     if not request.path.startswith('/api/'):
         return None
     if request.method == 'POST' and not isinstance(request.get_json(silent=True), dict):
         return jsonify({'error': 'Request must be a JSON object'}), 400
+    # Update checks touch no session state, so a slow network never blocks file work.
+    if request.path.startswith('/api/update/'):
+        return None
     if not session_lock.acquire(blocking=False):
         return jsonify({'error': 'Another operation is in progress'}), 409
     g.metafix_locked = True

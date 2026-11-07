@@ -91,6 +91,10 @@
   .brand { display: flex; align-items: baseline; gap: 8px; margin-right: 12px; }
   .word { font-size: 16px; font-weight: 600; }
   .app-version { font-size: 12px; line-height: 16px; color: var(--text3); white-space: nowrap; }
+  .link-btn { font: inherit; font-size: 12px; line-height: 16px; padding: 0; border: 0; background: none; color: var(--text3); cursor: pointer; white-space: nowrap; }
+  .link-btn:hover:not(:disabled) { color: var(--text); text-decoration: underline; }
+  .link-btn:disabled { cursor: default; }
+  .link-btn.available { color: var(--gold); font-weight: 600; }
 
   /* ── BUTTONS ── */
   .btn {

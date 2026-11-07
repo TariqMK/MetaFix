@@ -80,6 +80,33 @@ async function api(endpoint, body = null) {
   return result;
 }
 
+// ── UPDATE CHECK ───────────────────────────────────────────────────────────────
+// Goes online only when the user clicks. A found update opens its GitHub page.
+let updateAvailable = false;
+
+async function updateAction() {
+  const btn = document.getElementById('updateBtn');
+  if (updateAvailable) {
+    try { await api('/api/update/open', {}); }
+    catch (error) { setStatus(error.message, 'bad'); }
+    return;
+  }
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+  try {
+    const res = await api('/api/update/check', {});
+    updateAvailable = res.newer;
+    btn.textContent = res.newer ? `v${res.latest} available` : 'Up to date';
+    btn.title = res.newer ? 'Open the release page in your browser' : `v${res.latest} is the latest release`;
+    btn.classList.toggle('available', res.newer);
+  } catch (error) {
+    btn.textContent = 'Check for updates';
+    setStatus(error.message, 'bad');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 // ── EXIFTOOL / FFMPEG ──────────────────────────────────────────────────────────
 function toggleTools(event) {
   event.stopPropagation();

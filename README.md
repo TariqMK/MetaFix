@@ -4,6 +4,8 @@ MetaFix is a desktop utility for bulk-repairing date and time metadata on photos
 
 Built for the common situation where photos come off a phone, cloud service, or old backup with wrong, missing, or inconsistent timestamps across their metadata fields.
 
+Works offline. Sends no data. The only network request is the **Check for updates** button, and only when you click it.
+
 ![Shift mode preview: two photos from a camera with a wrong clock move 1 year and 2 hours later](docs/assets/screenshots/shift-preview-dark.png)
 
 ---
@@ -36,6 +38,7 @@ Built for the common situation where photos come off a phone, cloud service, or 
 - **Undo** - restores the exact backups from the last modified batch, including original filenames and, on Windows, file created dates; failed restores remain retryable
 - **Clean backups** - the Backups button lists tracked backups and confirms before deleting owned files only; unrelated and untracked legacy backups remain untouched
 - **Build version** - shown beside the MetaFix name in muted text; source runs show `v0.0.0+dev`
+- **Check for updates** - click the link beside the version to ask GitHub for the latest release; a newer version shows in gold, and clicking it opens the release page in your browser
 - **ExifTool path memory** — set once, remembered in `data/config.json` forever
 - **No re-encoding** - ExifTool edits metadata; AVI uses FFmpeg stream copy, with verified originals retained for recovery
 - **Silent background tools** - metadata reads and writes do not open Windows terminal windows
@@ -71,6 +74,20 @@ python MetaFix.py
 ```
 
 On first launch, click **Choose ExifTool** and select its executable; files can be added once it is set. For AVI files, also set FFmpeg under **Tools** and make ffprobe available. Paths are saved in `data/config.json`; the directory and file are created when you first save a tool path. Keep the app in a writable location. The pickers currently prefer `.exe` files; use All files on other platforms.
+
+---
+
+## Privacy
+
+- MetaFix works offline. All editing happens on your computer.
+- MetaFix has no telemetry, analytics, crash reporting or accounts.
+- Settings are stored in `data/config.json` beside the app. Backup records are stored in `data/backup-records/`.
+- The app makes one network connection, and only when you click **Check for updates**:
+  - To: `api.github.com`, the public MetaFix releases record.
+  - Sends: one request with the app name `MetaFix`. It sends nothing about you or your files.
+  - Why: to compare the latest release with your version.
+  - Kept: nothing.
+- If a newer version exists, clicking it opens the GitHub release page in your default browser. MetaFix downloads nothing itself.
 
 ---
 
@@ -245,6 +262,7 @@ MetaFix/
 |   |-- __init__.py             Flask factory and build version
 |   |-- desktop.py              Window, server, drag-and-drop
 |   |-- routes.py               HTTP endpoints and file dialogs
+|   |-- updates.py              Manual update check
 |   |-- config.py               Configuration and session state
 |   |-- fields.py               Supported formats and fields
 |   |-- dates.py                Date shifts and Windows timestamps
