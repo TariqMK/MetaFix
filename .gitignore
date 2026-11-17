@@ -8,3 +8,13 @@ release-assets/
 metafix/_version.txt
 __pycache__/
 *.pyc
+.venv/
+
+# AI tool files
+.claude/
+CLAUDE.md
+AGENTS.md
+.cursor/
+
+# macOS
+.DS_Store
