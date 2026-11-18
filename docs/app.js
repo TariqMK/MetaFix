@@ -259,7 +259,7 @@
       }
       const date = rel.published_at ? new Date(rel.published_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }) : '';
       $('dlMeta').textContent = `${rel.tag_name}${date ? ` · released ${date}` : ''}`;
-      $('heroMeta').textContent = `${rel.tag_name} · Free and open source · Offline · Windows, macOS, Linux`;
+      $('heroMeta').textContent = `${rel.tag_name} · Free and open source · Offline · No tracking`;
       $('pvVer').textContent = rel.tag_name;
     })
     .catch(() => {});

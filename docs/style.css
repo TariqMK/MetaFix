@@ -256,6 +256,9 @@ a:focus-visible, button:focus-visible, input:focus-visible { outline: 2px solid 
 .needs b { color: var(--text); font-weight: 600; }
 .needs a { color: var(--gold-ink); }
 .fine { margin-top: 12px; font-size: 14px; color: var(--text3); }
+.mac-help { margin-top: 16px; }
+.mac-help a { color: var(--gold-ink); }
+.mac-help b { color: var(--text2); font-weight: 600; }
 
 /* Footer */
 .foot { border-top: 1px solid var(--line); background: var(--bg); }

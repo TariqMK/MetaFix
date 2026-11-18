@@ -5,7 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>MetaFix · Fix the dates on your photos and videos</title>
-<meta name="description" content="MetaFix is a free desktop app that repairs date and time metadata on photos and videos in bulk. Preview every change, keep a backup of every original, and undo the last batch.">
+<meta name="description" content="MetaFix is a free desktop app that corrects wrong or missing dates on hundreds of photos and videos at once. Preview every change, keep a backup of every original, and undo the last batch.">
 <meta name="theme-color" content="#0f0f10" media="(prefers-color-scheme: dark)">
 <meta name="theme-color" content="#f4f4f5" media="(prefers-color-scheme: light)">
 <meta name="color-scheme" content="dark light">
@@ -52,12 +52,12 @@
     </svg>
     <div class="wrap hero-text">
       <h1>Fix the dates on your<br>photos and videos.</h1>
-      <p class="lede">MetaFix repairs date and time metadata in bulk. Load the files that came off a phone, a cloud service or an old backup with wrong or missing dates, see exactly what will change, then write it.</p>
+      <p class="lede">MetaFix corrects wrong or missing dates on hundreds of photos and videos at once. Add the files from a phone, a cloud service or an old backup, see exactly what will change, then write it.</p>
       <div class="actions">
         <a class="btn primary" id="heroDownload" href="https://github.com/TariqMK/MetaFix/releases/latest">Download MetaFix</a>
         <a class="btn ghost" href="https://github.com/TariqMK/MetaFix">View source</a>
       </div>
-      <p class="meta mono" id="heroMeta">Free and open source · Offline · No tracking · Uses ExifTool</p>
+      <p class="meta mono" id="heroMeta">Free and open source · Offline · No tracking</p>
     </div>
 
     <div class="wrap">
@@ -118,8 +118,8 @@
       <p>Before a write, MetaFix copies each file into a <span class="mono">BACKUPS</span> folder beside it. Undo restores the last batch, names included.</p>
     </div>
     <div>
-      <h3>Metadata only. No re-encoding.</h3>
-      <p>ExifTool edits the date fields and leaves the image and video data alone. AVI files use an FFmpeg stream copy.</p>
+      <h3>Stays on your computer.</h3>
+      <p>Works offline. No accounts, no tracking. Your files are never sent anywhere. The one connection is <b>Check for updates</b>, and only when you select it.</p>
     </div>
   </section>
 
@@ -174,7 +174,7 @@
         <div><h4>Clean backups</h4><p>Lists tracked backups and asks before it deletes. Files it did not make stay.</p></div>
         <div><h4>Windows created date</h4><p>Optionally sets the Date created that Windows Explorer shows, as well as the metadata.</p></div>
         <div><h4>Light and dark</h4><p>The window follows your system appearance.</p></div>
-        <div><h4>Quiet background tools</h4><p>Reads and writes do not open terminal windows on Windows.</p></div>
+        <div><h4>No re-encoding</h4><p>Only the date information changes. Your pictures and video are left as they are.</p></div>
         <div><h4>Set once</h4><p>The ExifTool and FFmpeg paths are saved and remembered between sessions.</p></div>
       </div>
 
@@ -194,7 +194,7 @@
       </a>
       <a class="card" data-os="macos" href="https://github.com/TariqMK/MetaFix/releases/latest">
         <span class="card-top"><b>macOS</b><span class="mono" data-size>Apple Silicon · .zip</span></span>
-        <span class="card-body">For Apple Silicon Macs. There is no Intel build. The app is unsigned and not notarized, so macOS asks before it opens it the first time.</span>
+        <span class="card-body">For Apple Silicon Macs. There is no version for Intel Macs. MetaFix isn't notarised by Apple, so macOS shows a warning the first time you open it. This is expected.</span>
         <span class="card-go">Download for macOS</span>
       </a>
       <a class="card" data-os="linux" href="https://github.com/TariqMK/MetaFix/releases/latest">
@@ -203,10 +203,12 @@
         <span class="card-go">Download for Linux</span>
       </a>
     </div>
+    <p class="fine mac-help">First time opening MetaFix on a Mac? <a href="https://github.com/TariqMK/MetaFix#opening-on-macos">Here's how</a>: click <b>Done</b> on the warning, then open <b>System Settings → Privacy &amp; Security</b> and click <b>Open Anyway</b>. You only need to do this once.</p>
     <div class="needs">
-      <p><b>You also need ExifTool.</b> MetaFix does not include it. On first launch, select <b>Choose ExifTool</b> and point it at the executable from <a href="https://exiftool.org/">exiftool.org</a>. For AVI files, also set FFmpeg under <b>Tools</b> and keep ffprobe beside it.</p>
-      <p class="fine">Keep the app in a folder you can write to; it saves tool paths in <span class="mono">data/config.json</span>. Native media editing on macOS and Linux still needs more testing. To run from source with Python 3.10 or later, see the <a href="https://github.com/TariqMK/MetaFix#installation">README</a>.</p>
+      <p><b>You also need ExifTool.</b> It is free, and MetaFix does not include it. Download it from <a href="https://exiftool.org/">exiftool.org</a>, open MetaFix, select <b>Choose ExifTool</b> and select the ExifTool program. For AVI videos, also set FFmpeg under <b>Tools</b> and keep ffprobe in the same folder.</p>
+      <p class="fine">Extract the download into a folder you can write to; MetaFix keeps its settings beside it. The macOS and Linux versions still need more testing with real photo and video edits.</p>
       <p class="fine">MetaFix works offline and sends no data. <b>Check for updates</b> contacts GitHub only when you click it. See <a href="https://github.com/TariqMK/MetaFix#privacy">Privacy</a>.</p>
+      <p class="fine">Want to build it yourself? See the <a href="https://github.com/TariqMK/MetaFix#for-developers">developer notes</a>.</p>
     </div>
   </section>
 </main>
