@@ -28,11 +28,12 @@ def fetch_latest():
         return json.load(response)
 
 
-def check(current_version, fetch=fetch_latest):
+def check(current_version, fetch=None):
     global _last_release_url
     _last_release_url = None
     try:
-        release = fetch()
+        # Look up fetch_latest at call time, so tests can replace it and stay offline.
+        release = (fetch or fetch_latest)()
     except Exception as error:
         raise ValueError("Could not reach GitHub to check for updates. Check your connection and try again.") from error
     latest = parse_version(release.get("tag_name"))
