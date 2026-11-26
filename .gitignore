@@ -3,6 +3,7 @@ venv/
 MetaFix.bat
 data/
 build/
+MetaFix.spec
 dist/
 release-assets/
 metafix/_version.txt

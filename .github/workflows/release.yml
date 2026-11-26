@@ -39,7 +39,7 @@ jobs:
       version: ${{ steps.version.outputs.version }}
       tag: ${{ steps.version.outputs.tag }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Test version calculation
         run: node --test tests/*.test.cjs
       - name: Allocate next version
@@ -71,8 +71,8 @@ jobs:
       QT_API: pyside6
       RELEASE_VERSION: ${{ needs.prepare.outputs.version }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-python@v6
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
           cache: pip
@@ -94,7 +94,7 @@ jobs:
       - name: Build native archive
         run: python scripts/build.py --version "$RELEASE_VERSION"
         shell: bash
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.target }}
           path: release-assets/*
@@ -107,8 +107,8 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/download-artifact@v7
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           path: release-assets
           merge-multiple: true

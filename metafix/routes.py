@@ -1,5 +1,6 @@
 """HTTP interface and native file-picker endpoints."""
 import os
+import shutil
 import webview
 from flask import Blueprint, request, jsonify, render_template, g
 from .config import state, save_config
@@ -29,34 +30,55 @@ def get_config():
     })
 
 
-@routes.route("/api/browse_exiftool", methods=["POST"])
-def browse_exiftool():
+# Folders where macOS and Linux installers put command-line tools. The macOS file
+# picker hides them, and an app opened from Finder doesn't have them on its PATH.
+TOOL_FOLDERS = ('/opt/homebrew/bin', '/usr/local/bin', '/usr/bin')
+
+
+def tool_file_types(windows):
+    """Picker filters for an external tool. Only Windows programs end in .exe.
+
+    On macOS and Linux the program has no extension (for example "exiftool"), and Qt's
+    "*.*" only matches names with a dot, so the filter must be "*".
+    """
+    if windows:
+        return ("Executable files (*.exe)", "All files (*.*)")
+    return ("All files (*)",)
+
+
+def tool_start_folder(name, which=shutil.which, isdir=os.path.isdir):
+    """Open the picker where the tool already is, or in the usual install folder."""
+    found = which(name)
+    if found:
+        return os.path.dirname(found)
+    if os.name == 'nt':
+        return ''
+    return next((folder for folder in TOOL_FOLDERS if isdir(folder)), '')
+
+
+def browse_tool(name, key):
     result = webview.windows[0].create_file_dialog(
         webview.OPEN_DIALOG,
+        directory=tool_start_folder(name),
         allow_multiple=False,
-        file_types=("Executable files (*.exe)", "All files (*.*)")
+        file_types=tool_file_types(os.name == 'nt'),
     )
     if result:
         path = result[0]
-        state["config"]["exiftool_path"] = path
+        state["config"][key] = path
         save_config(state["config"])
         return jsonify({"ok": True, "path": path})
     return jsonify({"ok": False})
+
+
+@routes.route("/api/browse_exiftool", methods=["POST"])
+def browse_exiftool():
+    return browse_tool("exiftool", "exiftool_path")
 
 
 @routes.route("/api/browse_ffmpeg", methods=["POST"])
 def browse_ffmpeg():
-    result = webview.windows[0].create_file_dialog(
-        webview.OPEN_DIALOG,
-        allow_multiple=False,
-        file_types=("Executable files (*.exe)", "All files (*.*)")
-    )
-    if result:
-        path = result[0]
-        state["config"]["ffmpeg_path"] = path
-        save_config(state["config"])
-        return jsonify({"ok": True, "path": path})
-    return jsonify({"ok": False})
+    return browse_tool("ffmpeg", "ffmpeg_path")
 
 
 @routes.route("/api/add_files", methods=["POST"])

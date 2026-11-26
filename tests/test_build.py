@@ -11,7 +11,7 @@ from scripts import build
 
 
 class BuildPathsTest(unittest.TestCase):
-    def test_assets_exist_when_resolved_from_generated_spec_directory(self):
+    def test_build_command_and_self_test(self):
         for system, arch in [('Windows', 'AMD64'), ('Darwin', 'arm64'), ('Linux', 'x86_64')]:
             with self.subTest(system=system), tempfile.TemporaryDirectory() as tmp:
                 root = Path(tmp).resolve()
@@ -29,27 +29,41 @@ class BuildPathsTest(unittest.TestCase):
                          patch.object(build.platform, 'system', return_value=system), \
                          patch.object(build.platform, 'machine', return_value=arch), \
                          patch.object(build.subprocess, 'run') as run, \
+                         patch('builtins.print'), \
                          patch.object(build.shutil, 'make_archive'):
+                        run.return_value.returncode = 0
+                        run.return_value.stdout = 'MetaFix v1.2.3\n'
+                        run.return_value.stderr = ''
                         build.main()
-                        command = run.call_args_list[0].args[0]
-                        smoke = run.call_args_list[1]
-                        self.assertIn('--smoke-test', smoke.args[0])
-                        self.assertIn('--expect-version', smoke.args[0])
-                        self.assertEqual(smoke.kwargs['timeout'], 120)
-                        self.assertEqual(smoke.kwargs['env']['QT_QPA_PLATFORM'], 'offscreen')
+                        calls = [c.args[0] for c in run.call_args_list]
+                        command = calls[0]
+                        self.assertNotIn('--specpath', command)
+                        self_test = next(c for c in run.call_args_list if '--self-test' in c.args[0])
+                        self.assertIn('--expect-version', self_test.args[0])
+                        self.assertEqual(self_test.kwargs['timeout'], 120)
+                        self.assertEqual(self_test.kwargs['env']['QT_QPA_PLATFORM'], 'offscreen')
+                        stamped = [c for c in calls if c[0] == 'plutil']
+                        if system == 'Darwin':
+                            self.assertEqual([c[2:5] for c in stamped],
+                                             [['CFBundleShortVersionString', '-string', '1.2.3'],
+                                              ['CFBundleVersion', '-string', '1.2.3']])
+                            self.assertIn(['codesign', '--force', '--sign', '-',
+                                           str(root / 'dist/MetaFix.app')], calls)
+                        else:
+                            self.assertEqual(stamped, [])
                         sources = []
                         for i, value in enumerate(command):
                             if value == '--add-data':
                                 source, destination = command[i + 1].rsplit(':', 1)
-                                source = Path(source)
-                                self.assertTrue(source.is_absolute())
-                                self.assertTrue((root / 'build' / source).exists())
+                                # Relative to the repo root, where PyInstaller runs.
+                                self.assertFalse(Path(source).is_absolute())
+                                self.assertTrue((root / source).exists())
                                 sources.append(destination)
                         self.assertEqual(sources, ['metafix/templates', 'metafix/static', 'metafix', 'metafix/assets'])
                         if system in ('Windows', 'Darwin'):
                             extension = 'ico' if system == 'Windows' else 'icns'
                             self.assertEqual(command[command.index('--icon') + 1],
-                                             str(root / f'docs/assets/icon.{extension}'))
+                                             f'docs/assets/icon.{extension}')
                         else:
                             self.assertNotIn('--icon', command)
                         self.assertEqual((root / 'metafix/_version.txt').read_text().strip(), '1.2.3')

@@ -101,7 +101,8 @@ For AVI videos you also need FFmpeg and ffprobe, also free:
 2. In MetaFix, select **Tools**, then select the FFmpeg program file.
 3. Keep ffprobe in the same folder as FFmpeg.
 
-**Note:** The file picker looks for `.exe` files first. On macOS and Linux, choose **All files** in the picker to see the program.
+> [!NOTE]
+> On macOS and Linux, the program file is named `exiftool` (or `ffmpeg`), with no extension. The picker opens in the folder where the program is installed, for example `/opt/homebrew/bin` (Homebrew on Apple Silicon) or `/usr/local/bin` (the ExifTool installer). If the program is somewhere else, press **Cmd + Shift + G** in the macOS picker and type its folder.
 
 ### Opening on macOS
 
@@ -257,21 +258,30 @@ python -m unittest discover -s tests -p "test_*.py"
 python scripts/check_app.py
 ```
 
-Current suite: 44 Python tests and 31 Node tests (75 total).
+Current suite: 62 Python tests and 31 Node tests (93 total).
 
 - The Python safety tests use temporary dummy files and mocked external tools.
 - The JavaScript tests cover version allocation, release retries, and UI state and error recovery.
 - The build-path tests mock native packaging commands.
 - `check_app.py` checks imports and Flask routes without opening a window or changing media.
-- GitHub Actions also runs the packaged app's smoke mode.
+- `python MetaFix.py --self-test` checks the app's files and Qt WebEngine load, then prints `MetaFix v<version>`. It exits 1 and names the problem if anything is missing. The build script runs it on every packaged build.
+
+End-to-end check against a running app:
+
+1. Start MetaFix and set ExifTool.
+2. Find the local port MetaFix listens on (see the comment at the top of `scripts/check_e2e.py`).
+3. Run `python scripts/check_e2e.py http://127.0.0.1:<port> <sample.jpg> <new empty folder>`.
+
+The check loads copies of the sample JPEG, then reads, previews, applies, undoes, shifts one selected file and deletes the backups. It checks file contents before and after each step. It only works in a new or empty folder.
 
 Manual checks so far:
 
 - Real-tool checks passed for generated JPEG, MP4 and AVI samples: write, read-back, copy preview, rename and byte-exact undo.
 - Real JPEG and AVI checks passed with flat backups, hidden subprocesses and Windows timestamp updates.
 - The interface passed in a browser with real ExifTool on JPEG and PNG copies: preview, mixed-direction shift, rename and byte-exact undo. Undo's created-date restore passed with and without renaming.
-- The interface has not yet been checked in the native desktop window.
-- The latest packaged checks still need a fresh native workflow run.
+- On 26 November 2026, packaged builds passed the end-to-end check with real ExifTool on macOS (Apple Silicon), Linux (Ubuntu 24.04 ARM64, built from source) and Windows 11 (x64 build under ARM64 emulation). On Windows, the created-date option, rename and undo also passed, and the build ran when unpacked from a download-marked ZIP.
+- The window's look, drag and drop, and clicking through the file pickers have not been checked yet.
+- The latest workflow changes still need a fresh native workflow run.
 
 </details>
 
@@ -317,7 +327,7 @@ MetaFix/
 |       |-- css/app.css         Styles
 |       `-- js/app.js           Interface logic
 |-- .github/workflows/release.yml
-|-- scripts/                    Build, versioning, smoke checks
+|-- scripts/                    Build, versioning, self-test and end-to-end checks
 |-- tests/                      Safety, UI, release, version, build checks
 |-- packaging/requirements.txt  Release build dependencies
 |-- docs/                       GitHub Pages product page
@@ -410,8 +420,8 @@ The first command is needed once only. The other screenshots (`set-date-preview-
 - All three builds must succeed before any release is created.
 - Downloads are ZIP files for Windows and macOS, and a tar.gz file for Linux. ExifTool and FFmpeg are not bundled.
 - The macOS app is unsigned and not notarised. Linux builds target Ubuntu 22.04 or compatible newer desktops.
-- After packaging, the build script runs the executable in headless `--smoke-test` mode. It checks Flask resources, the Qt backend import and the embedded version before archiving. This is not an interactive GUI or media test.
-- The cross-platform builds were reported working after the asset-path fix. Native GUI and media editing still need end-to-end testing on each OS.
+- After packaging, the build script runs the executable with `--self-test`. It checks Flask resources, the Qt backend and the embedded version before archiving. On macOS and Linux it also checks the printed version line. This is not an interactive GUI or media test.
+- The macOS build shows its version in **Get Info**. The build script writes it into `Info.plist`, then signs the app again.
 
 **Version numbers**
 

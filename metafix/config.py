@@ -10,7 +10,8 @@ state = {"files": [], "last_batch": [], "config": {}}
 def load_config():
     if CONFIG.exists():
         try:
-            with CONFIG.open("r", encoding="utf-8") as config_file:
+            # utf-8-sig also reads files saved with a BOM, which Windows editors can add.
+            with CONFIG.open("r", encoding="utf-8-sig") as config_file:
                 return json.load(config_file)
         except (OSError, ValueError):
             pass
